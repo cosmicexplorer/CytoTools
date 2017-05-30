@@ -10,6 +10,8 @@ allie-paper
     - starting pop is called "live leukocytes"
     - on all protein markers
         - not numeric ones
+        - run this on *markers shared between all pops*
+            - and maybe fix some small inconsistencies in column naming
 - install and run pairwise emd on all visne plots (this is an R script)
     - this will produce a csv
     - heatmap created from csv (heatmap creation is also an R script)
@@ -46,5 +48,16 @@ allie-paper
 - rmsd comparison of MEM is challenging
     - need to have same markers
     - making script to produce copies of all input files but only with channels that are shared
-        - and maybe fix some small idiosyncracies in column namingneed
+        - and maybe fix some small inconsistencies in column naming
 - more info later
+
+# TODO
+- can/should we clean cyto data?
+    - would do this in `read_clean_fcs` in [fcs.R](R/fcs.R)
+    - ideas:
+        - `stats::na.omit()`
+        - `dplyr::distinct()`
+    - when would these happen in the data?
+        - **find out what these mean instead of just blindly removing them**
+        - if they point to some error or inconsistency in dataset, removal may not make sense!
+    - allie says nobody does any cleaning to their fcs files, so may not make sense
