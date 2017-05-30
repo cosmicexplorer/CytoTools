@@ -84,5 +84,5 @@ process_intersect_fcs <- function (frames,
     ## TODO: find less common columns and check if they're mistakes
     ## TODO: if columns are close but not the same (levenshtein), show a warning
     common_markers <- filtered %>% colnames %>% Reduce(f = intersect, x = .)
-    lapply(filtered, function (df) df[,common_markers])
+    lapply(filtered, function (processed_fcs) processed_fcs[,common_markers])
 }
