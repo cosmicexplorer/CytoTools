@@ -2,16 +2,9 @@ library(flowCore)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
 
-with_connection <- function (conn, expr, name = "con", pf = parent.frame()) {
-    sub_conn <- substitute(conn)
-    sub_expr <- substitute(expr)
-    toDo <- bquote(with(setNames(list(.(sub_conn)), .(name)),
-                        .(sub_expr)))
-    eval(toDo, pf)
-}
-
-## see readFCSheader in IO.R in ~/tools/flowCore/R
-## use with_connection(file("marrow_Ungated_viSNE.fcs", "r"), readFCSheader(con))
+## NOTE: we only grab a single dataset from each input file, even if more
+## exist. multiple datasets in an fcs file is deprecated and "implementors are
+## being discouraged to do so." it may exist, but shouldn't be supported.
 
 read_clean_fcs <- function(fname) {
     flowFrame_obj <- read.FCS(
