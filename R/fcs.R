@@ -6,7 +6,7 @@ library(dplyr, warn.conflicts = F)
 ## exist. multiple datasets in an fcs file is deprecated and "implementors are
 ## being discouraged to do so." it may exist, but shouldn't be supported.
 
-read_clean_fcs <- function(fname) {
+read_fcs <- function(fname) {
     flowFrame_obj <- read.FCS(
         ## TODO: are these the standard transformations for flowCore?
         fname, transformation = NULL, truncate_max_range = F)
@@ -14,13 +14,47 @@ read_clean_fcs <- function(fname) {
     as.data.frame(exprs(flowFrame_obj))
 }
 
+## TODO: convert binary fcs to text and back!
+read_csv <- function (fname, header = TRUE, sep = ',', ...) {
+    read.table(fname, header = header, sep = sep, ...)
+}
+
+read_txt <- function (fname, header = TRUE, sep = '\t', ...) {
+    read.table(fname, header = header, sep = sep, ...)
+}
+
+read_file <- function (fname) {
+    ext <- file_ext(fname)
+    switch(ext,
+           fcs = read_fcs(fname),
+           csv = read_csv(fname),
+           txt = read_txt(fname),
+           stop(sprintf("unrecognized file extension '%s' for file '%s'",
+                        ext, fname)))
+}
+
+## TODO: check validity of data in df? against params/description?
+make_flowFrame <- function (exprs, parameters, description) {
+    exprs <- as.matrix(exprs)
+    args <- list(exprs = quote(exprs))
+    if (hasArg(parameters)) {
+        args <- c(args, list(parameters = quote(parameters)))
+    }
+    if (hasArg(description)) {
+        args <- c(args, list(description = quote(description)))
+    }
+    do.call("flowFrame", args, envir = environment())
+}
+
+write_flowFrame <- function (frame, fname) {
+    write.FCS(frame, fname)
+}
+
 ## read list of fcs filenames into data frames
 read_fcs_files <- function(fnames) {
     names_list <- as.list(fnames)
     lapply(names_list, read_clean_fcs)
 }
-
-## TODO: convert binary fcs to text and back!
 
 squish_expression <- Vectorize(function(x) asinh(x / 5))
 inv_squish_expression <- Vectorize(function(y) 5 * sinh(y))
