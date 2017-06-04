@@ -4,6 +4,7 @@ allie-paper
 - 4 parts total, we'll just do first three now
 - review methodology and script some stuff that's not
     - also modify script to run off of binary fcs, not just csv
+        - **DONE**
 
 # part 1
 - run visne on all files from all patients (output should be a visne plot per file)
@@ -12,6 +13,8 @@ allie-paper
         - not numeric ones
         - run this on *markers shared between all pops*
             - and maybe fix some small inconsistencies in column naming
+    - with all cells as ref pop for visne
+        - so each file's visne is just its subset of that total visne
 - install and run pairwise emd on all visne plots (this is an R script)
     - this will produce a csv
     - heatmap created from csv (heatmap creation is also an R script)

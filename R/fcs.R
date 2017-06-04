@@ -2,6 +2,10 @@ library(flowCore)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
 
+
+
+### Read/write different representations of flow data.
+
 ## NOTE: we only grab a single dataset from each input file, even if more
 ## exist. multiple datasets in an fcs file is deprecated and "implementors are
 ## being discouraged to do so." it may exist, but shouldn't be supported.
@@ -50,22 +54,9 @@ write_flowFrame <- function (frame, fname) {
     write.FCS(frame, fname)
 }
 
-## read list of fcs filenames into data frames
-read_fcs_files <- function(fnames) {
-    names_list <- as.list(fnames)
-    lapply(names_list, read_clean_fcs)
-}
 
-squish_expression <- Vectorize(function(x) asinh(x / 5))
-inv_squish_expression <- Vectorize(function(y) 5 * sinh(y))
-
-add_squished <- function (frame, channels,
-                          sep = "S-", squish = squish_expression) {
-    squished_names <- paste(sep, colnames(frame)[which(channels)], sep = "")
-    squished <- squish(frame[,channels])
-    colnames(squished) <- squished_names
-    cbind(frame[,!channels], frame[,channels], squished)
-}
+
+### Clean fcs data.
 
 numeric_pat <- "^[[:digit:]+]$"
 sne_pat <- "[sS][nN][eE]"
@@ -79,11 +70,15 @@ is_all_integer <- function (vec) {
     all(vec == as.integer(vec))
 }
 
-filter_columns <- function (name_changes, excl_pats, excl_preds, df) {
-    canonized <- df %>% colnames %>%
+## TODO: make name_changes (able to) read from config file!
+clean_frame <- function (name_changes = list(),
+                         excl_pats = list(numeric_pat, sne_pat),
+                         excl_preds = list(is_all_integer),
+                         frame) {
+    canonized <- frame %>% colnames %>%
         Reduce(x = name_changes, init = .,
                f = function (cols, fun) { lapply(cols, fun) }) %>%
-        set_colnames(x = df, value = .)
+        set_colnames(x = frame, value = .)
 
     names_filtered <- canonized %>% colnames %>%
         Reduce(x = excl_pats, init = .,
@@ -106,17 +101,13 @@ filter_columns <- function (name_changes, excl_pats, excl_preds, df) {
     col_value_filtered
 }
 
-process_intersect_fcs <- function (frames,
-                                   ## TODO: add config file for this!
-                                   name_changes = list(),
-                                   excl_pats = list(numeric_pat, sne_pat),
-                                   excl_preds = list(is_all_integer)) {
-    filtered <- lapply(frames, function (df) {
-        filter_columns(name_changes, excl_pats, excl_preds, df)
-    })
 
+
+### Manipulate fcs data.
+
+shared_markers <- function (frames) {
     ## TODO: find less common columns and check if they're mistakes
-    ## TODO: if columns are close but not the same (levenshtein), show a warning
-    common_markers <- filtered %>% colnames %>% Reduce(f = intersect, x = .)
-    lapply(filtered, function (processed_fcs) processed_fcs[,common_markers])
+    ## TODO: if columns are close but not the same (e.g. levenshtein), show a
+    ## warning
+    frames %>% colnames %>% Reduce(f = intersect, x = .)
 }
