@@ -65,8 +65,7 @@ is_all_integer <- function (vec) {
     ## vec is a column of a data frame produced by read_clean_fcs
     ## read.FCS only produces double columns
     stopifnot(is.vector(vec) && is.double(vec))
-    ## this was found to be the fastest way to do this with benchmarking
-    ## (not like that matters here)
+    ## this benchmarked as the fastest method
     all(vec == as.integer(vec))
 }
 

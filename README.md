@@ -5,6 +5,12 @@ allie-paper
 - review methodology and script some stuff that's not
     - also modify script to run off of binary fcs, not just csv
         - **DONE**
+    - also fix MEM auto-scaling, if that's not done / easy
+        - kirsten *did* add code to set a scale now
+            - check this out
+            - want to be able to reliably compare MEM across experiments
+                - so just: don't scale it
+        - try to understand why the scaling was done like that in the first place?
 
 # part 1
 - run visne on all files from all patients (output should be a visne plot per file)
