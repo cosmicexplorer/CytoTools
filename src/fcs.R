@@ -1,6 +1,6 @@
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
-library(flowCore)
+library(flowCore, warn.conflicts = F)
 library(CytobankAPI, quietly = T, warn.conflicts = F)
 library(flowWorkspace, quietly = T)
 library(flowUtils)
@@ -127,4 +127,30 @@ cytobank_request <- function (..., req) {
         match.fun(req)(cy_sesh)
     },
     finally = authentication.logout(cy_sesh))
+}
+
+download_all_fcs <- function (auth, exp_id, dir = getwd(),
+                              n = pretty_good_parallelism()) {
+    fcs_listings <- fcs_files.list(auth, experiment_id = exp_id) %>%
+        select(id, filename, md5sum)
+    ## throw unless we can download everything
+    ## return downloaded file paths
+}
+
+dl_check_fcs <- function (auth, exp_id, fcs_id, file_md5) {
+    fcs_dl <- fcs_files.download(
+        auth, experiment_id = exp_id, fcs_file_id = fcs_id)
+
+}
+
+get_gates_pops_set <- function (auth, exp_id, dir = getwd(),
+                                without_fcs_dl = FALSE) {
+    ## download every fcs file from the experiment
+    if (!without_fcs_dl) {
+        all_fcs_zipped <- fcs_files.download_zip(auth, experiment_id = exp_id)
+        unzip(all)
+    }
+    ## download gatingml as xml
+    gating_file <- gates.gatingML_download(auth, experiment_id = exp_id)
+    cytobank2GatingSet(gating_file, list.files(path = "./5-2"))
 }
