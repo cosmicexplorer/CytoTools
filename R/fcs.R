@@ -1,7 +1,10 @@
-library(flowCore)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
-
+library(flowCore)
+library(CytobankAPI, quietly = T, warn.conflicts = F)
+library(flowWorkspace, quietly = T)
+library(flowUtils)
+library(CytoML)
 
 
 ### Read/write different representations of flow data.
@@ -18,7 +21,6 @@ read_fcs <- function(fname) {
     as.data.frame(exprs(flowFrame_obj))
 }
 
-## TODO: convert binary fcs to text and back!
 read_csv <- function (fname, header = TRUE, sep = ',', ...) {
     read.table(fname, header = header, sep = sep, ...)
 }

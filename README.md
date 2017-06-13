@@ -1,7 +1,7 @@
 allie-paper
 ===========
 
-- **CUR:** https://irishlab.cytobank.org/cytobank/experiments/22899/illustrations/52053
+- **[EXPERIMENT LINK HERE](https://irishlab.cytobank.org/cytobank/experiments/22899)**
     - experiment id **22899**
 - 4 parts total, we'll just do first three now
 - review methodology and script some stuff that's not
@@ -43,7 +43,7 @@ allie-paper
         - but likely we'll only be able to download gates as a selection of rows from parent fcs
         - and identify them in parent by `event#`
     - see `Population frequency_populations of interest.xlsx` in Downloads for subpops and parent pops to download from illustration
-        - illustration at https://irishlab.cytobank.org/cytobank/experiments/22899/
+        - [illustration here](https://irishlab.cytobank.org/cytobank/experiments/22899/illustrations/52053)
         - also check if there are any duplicated event#s
 - quantifying change
     - sometimes populations go to 0, so currently we add a little offset so numbers don't blow up
