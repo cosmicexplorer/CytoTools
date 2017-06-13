@@ -110,3 +110,19 @@ shared_markers <- function (frames) {
     ## warning
     frames %>% colnames %>% Reduce(f = intersect, x = .)
 }
+
+
+
+### Analyze hierarchies of populations in a dataset.
+
+
+
+### Pull data from cytobank.
+
+cytobank_request <- function (..., req) {
+    cy_sesh <- authenticate(...)
+    tryCatch({
+        match.fun(req)(cy_sesh)
+    },
+    finally = authentication.logout(cy_sesh))
+}

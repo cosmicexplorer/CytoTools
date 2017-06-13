@@ -1,6 +1,8 @@
 allie-paper
 ===========
 
+- **CUR:** https://irishlab.cytobank.org/cytobank/experiments/22899/illustrations/52053
+    - experiment id **22899**
 - 4 parts total, we'll just do first three now
 - review methodology and script some stuff that's not
     - also modify script to run off of binary fcs, not just csv
