@@ -15,15 +15,18 @@ allie-paper
         - try to understand why the scaling was done like that in the first place?
 
 # part 1
-- run visne on all files from all patients (output should be a visne plot per file)
+- **NO POPULATIONS CONSIDERED IN THIS PART**
+- run visne on all files from all patients
+    - **for each file, make a new one with visne analysis id which has tsne axes for each event from that file**
     - starting pop is called "live leukocytes"
     - on all protein markers
         - not numeric ones
-        - run this on *markers shared between all pops*
-            - and maybe fix some small inconsistencies in column naming
-    - with all cells as ref pop for visne
-        - so each file's visne is just its subset of that total visne
-- install and run pairwise emd on all visne plots (this is an R script)
+    - using some existing visne analyysis in some existing experiment on cytobank
+        - so each file's t-sne axes are just for the events in that file from that total visne
+- install and run pairwise emd on all of the resulting files with tsne axes (this is an R script)
+    - *emd compares events, with each file as its own "cluster", using only t-SNE axes for distance*
+        - emd script does this already (produces the heatmap)
+        - and maybe fix some small inconsistencies in column naming
     - this will produce a csv
     - heatmap created from csv (heatmap creation is also an R script)
         - requires manual editing of csv first
@@ -49,8 +52,13 @@ allie-paper
     - sometimes populations go to 0, so currently we add a little offset so numbers don't blow up
         - see if there's an alternative, this is probs fine
 - line graph of change as well
+- result of getPopStats magic is like: `list(df_pre, df_3wk, df_12wk, df_6m)`
+    - get pair of population and some ancestor of it (e.g. B_cells  -> Live Leukocytes) which has greatest change from pre -> 6m (meaning just abs or pos value)
+    - get line graph of relative concentrations for each `pop -> immediate parent` pair over x = (pre, 3wk, 12wk, 6m) time span
+        - by patient, also median of all
 
 # part 3
+- *same thing as part 1 but with MEM instead of EMD*
 - run MEM on specified populations
     - with "all cells all patients" as ref pop
     - run it with same scale for all patients so they're comparable
