@@ -132,82 +132,43 @@ cytobank_request <- function (..., req) {
     finally = authentication.logout(cy_sesh))
 }
 
-fcs_successful_downloads <- function (fcs_tbl) {
-    with(fcs_tbl, (
-        file.exists(path) &
-        file.access(path, mode = 4) &
-        fileSize == file.size(path) &
-        md5sum == md5sum(path)))
-}
-
-fetch_fcs_unzip <- function (..., fcs_tbl, dir = getwd()) {
-    failed <- fcs_tbl %>% fcs_failed_downloads
-    fcs_tbl %>%
-        mutate(path = {
-
-        }
-                   (fileSize == file.size(path) &
-                    md5sum == md5sum(path) &
-                    ))
-        {
-            fcs_failed_downloads %<>%
-                mutate(path = {
-                    if (n() > 0) {
-                        fcs_zip_path <- fcs_files.download_zip(
-                            ..., directory = dir, fcs_files = id) %>%
-                            as.vector(mode = "character")
-                        unzip(fcs_zip_path, files = filename, exdir = dir)
-                    }
-                }) %T>% (
-                    fcs_failed_downloads %>% summarize(stopifnot(n() == 0)))
-        }
-}
-
-download_all_fcs <- function (auth, exp_id, dir = getwd()) {
-    fcs_files_info <- fcs_files.list(auth, exp_id) %>%
+download_all_fcs <- function (..., directory = getwd()) {
+    fcs_info <- fcs_files.list(...) %>%
         select(id, filename, md5sum, fileSize) %>%
-        mutate(path = file.path(dir, filename)) %>%
+        ## add where the files in experiment are expected to be
+        mutate(path = {
+            file.path(directory, filename) %>% normalizePath(mustWork = T)
+        }) %>%
         ## ensure it's a data frame with vectors
-        as.data.frame %>% mutate_all(unlist) %>%
+        as.data.frame %>% mutate_all(unlist)
 
-        group_by(fetched =
-                     fileSize == file.size(path) &
-                     md5sum == md5sum(path)) %>%
-        mutate()
+    ## download POTENTIALLY HUGE zip file -- may fail
+    fcs_zip_path <- fcs_files.download_zip(..., directory = directory) %>%
+        as.vector(mode = "character")
 
-    if (length(fcs_to_fetch) != 0) {
-        fcs_files_zip <- fcs_files.download_zip(
-            auth, experiment_id = exp_id, fcs_files = id, directory = dir) %>%
-            as.vector(mode = "character")
-        stopifnot(length(fcs_files_zip) == 1)
+    ## get unzipped files
+    unzip(fcs_zip_path, exdir = directory) %T>%
+        ## throw unless we can downloaded / unzipped everything correctly
+        ## return downloaded file paths
+        function (fcs_out) {
+            stopifnot(setequal(normalizePath(fcs_out, mustWork = T),
+                               fcs_info$path))
 
-        unzip(fcs_files_zip, )
-    }
-
-
-
-
-
-
-
-    ## throw unless we can download everything
-    ## return downloaded file paths
+            successes <- with(fcs_info, (file.exists(path) &
+                                         file.access(path, mode = 4) &
+                                         fileSize == file.size(path) &
+                                         md5sum == md5sum(path)))
+            stopifnot(all(successes))
+        }
 }
 
-dl_check_fcs <- function (auth, exp_id, fcs_id, file_md5) {
-    fcs_dl <- fcs_files.download(
-        auth, experiment_id = exp_id, fcs_file_id = fcs_id)
-
-}
-
-get_gates_pops_set <- function (auth, exp_id, dir = getwd(),
-                                without_fcs_dl = FALSE) {
-    ## download every fcs file from the experiment
-    if (!without_fcs_dl) {
-        all_fcs_zipped <- fcs_files.download_zip(auth, experiment_id = exp_id)
-        unzip(all)
+get_gates_pops_set <- function (..., fcs_set = NULL) {
+    ## download every fcs file from the experiment if not given
+    if (is.null(fcs_set)) {
+        fcs_set <- download_all_fcs(...)
     }
     ## download gatingml as xml
-    gating_file <- gates.gatingML_download(auth, experiment_id = exp_id)
-    cytobank2GatingSet(gating_file, list.files(path = "./5-2"))
+    gates.gatingML_download(...) %>%
+        ## apply to specified fcs files
+        cytobank2GatingSet(fcs_set)
 }
