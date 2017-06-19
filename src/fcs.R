@@ -183,13 +183,10 @@ download_all_fcs <- function (session, exp_id, verbose = T) {
     fcs_info$filename
 }
 
-get_gates_pops_set <- function (..., fcs_set = NULL) {
-    ## download every fcs file from the experiment if not given
-    if (is.null(fcs_set)) {
-        fcs_set <- download_all_fcs(...)
-    }
-    ## download gatingml as xml
-    gates.gatingML_download(...) %>%
-        ## apply to specified fcs files
-        cytobank2GatingSet(fcs_set)
+download_gates <- function (session, exp_id) {
+    gates.gatingML_download(session, exp_id)
+}
+
+apply_gates_fcs <- function (gates_xml, fcs_files) {
+    cytobank2GatingSet(gates_xml, fcs_files)
 }
