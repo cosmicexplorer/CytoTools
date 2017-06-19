@@ -3,9 +3,7 @@ library(CytobankAPI, quietly = T, warn.conflicts = F)
 library(flowWorkspace, quietly = T)
 library(flowUtils)
 library(CytoML)
-library(curl)
-library(foreach)
-library(iterators)
+library(gdata, quietly = T, warn.conflicts = F)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
 
@@ -134,71 +132,55 @@ cytobank_request <- function (..., req) {
     finally = authentication.logout(cy_sesh))
 }
 
-invalid_fcs_dl <- function (fcs_list) {
-    res <- with(fcs_list, (file.exists(path) &
-                           file.access(path, mode = 4) &
-                           fileSize == file.size(path) &
-                           md5sum == md5sum(path)))
-    is.na(res) | !res
+## check that file exists, is readable, and has the right size and contents
+invalid_fcs_dl <- function (fcs_info) {
+    fcs_info %$%
+        {
+            (file.exists(filename) &
+             file.access(filename, mode = 4) == 0 &
+             fileSize == file.size(filename) &
+             md5sum == md5sum(filename))
+        } %>%
+        ## any NA or F means file is inaccessible or corrupted
+        ## (e.g. by an interrupted download)
+        { is.na(.) | !(.) }
 }
 
-get_fcs_zip <- function (..., fcs_info) {
-    ids_str <- paste(fcs_info$id, collapse = ",")
-    out <- sprintf("experiment_%s_fcs_%s.zip", exp_id, ids_str)
-    url <- sprintf("%s/experiments/%s/fcs_files/download_zip?fcs_file_ids=%s",
-                   session@site, exp_id, ids_str)
-    h <- new_handle()
-    handle_setheaders(
-        h, "authorization" = sprintf("Bearer %s", session@auth_token))
-    curl_download(url, out, quiet = F, handle = h)
-    unzip(out) %T>%
-        function (fcs_out) {
-            stopifnot(setequal(normalizePath(fcs_out, mustWork = T),
-                               fcs_info$path))
-            stopifnot(!any(invalid_fcs_dl(fcs_info)))
-        }
-}
-
-download_all_fcs <- function (..., directory = getwd()) {
-    fcs_info <- fcs_files.list(...) %>%
+## return fcs filenames
+download_all_fcs <- function (session, exp_id, verbose = T) {
+    fcs_info <- fcs_files.list(session, exp_id) %>%
+        ## fcs_files.list returns a data frame with list columns; undo that
+        mutate_all(unlist) %>%
         select(id, filename, md5sum, fileSize) %>%
-        ## add where the files in experiment are expected to be
-        mutate(path = {
-            real_dir <- normalizePath(directory, mustWork = T)
-            file.path(real_dir, filename)
-        }) %>%
-        ## ensure it's a data frame with vectors
-        as.data.frame %>% mutate_all(unlist)
-
-    foreach(i = iter(fcs_info, by = "row", chunksize = 2), .combine = "c") %:%
-        when(invalid_fcs_dl(i)) %do%
-        get_fcs_zip(..., fcs_files = i$id)
-    message(sprintf("downloading the following:\n%s",
-                    paste(fcs_info$path, collapse = "\n")))
-
-
-
-    ## download POTENTIALLY HUGE zip file -- may fail
-    fcs_zip_path <- fcs_files.download_zip(..., directory = directory) %>%
-        as.vector(mode = "character")
-    message(sprintf("zip file downloaded into '%s'", fcs_zip_path))
-
-    ## get unzipped files
-    unzip(fcs_zip_path, exdir = directory) %T>%
-        ## throw unless we can downloaded / unzipped everything correctly
-        ## return downloaded file paths
-        function (fcs_out) {
-            message(sprintf("unzipped files:\n%s",
-                            paste(fcs_out, collapse = "\n")))
-            stopifnot(setequal(normalizePath(fcs_out, mustWork = T),
-                               fcs_info$path))
-
-            successes <- with(fcs_info, (file.exists(path) &
-                                         file.access(path, mode = 4) &
-                                         fileSize == file.size(path) &
-                                         md5sum == md5sum(path)))
-            stopifnot(all(successes))
+        mutate(humansize = humanReadable(fileSize, width = 4))
+    to_dl <- fcs_info[invalid_fcs_dl(fcs_info),]
+    size_all <- sum(to_dl$fileSize)
+    size_cur <- 0
+    if (verbose) {
+        cat(sprintf("total size of files to download: %s\n",
+                    humanReadable(size_all, width = 4)))
+    }
+    for (i in 1:dim(to_dl)[1]) {
+        row <- to_dl[i,]
+        if (verbose) {
+            cat(sprintf("%s downloaded (%s%% done)\n",
+                        humanReadable(size_cur, width = 4),
+                        round(size_cur / size_all * 100, digits = 1)))
+            cat(sprintf("downloading %s (zipped size: %s, id: %s)...\n",
+                        row$filename, row$humansize, row$id))
         }
+        taken <- system.time(
+            fcs_files.download_zip(session, exp_id, row$id) %>% unzip)
+        cat(sprintf("download of %s took %s seconds\n",
+                    row$filename, round(taken[3], 2)))
+        if (any(invalid_fcs_dl(row))) {
+            stop(sprintf(paste("download of %s is corrupt",
+                               "-- check your internet connection"),
+                         row$filename))
+        }
+        size_cur <- size_cur + row$fileSize
+    }
+    fcs_info$filename
 }
 
 get_gates_pops_set <- function (..., fcs_set = NULL) {
