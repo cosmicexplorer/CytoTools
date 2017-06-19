@@ -63,7 +63,7 @@ write_flowFrame <- function (frame, fname) {
 
 ### Clean fcs data.
 
-numeric_pat <- "^[[:digit:]+]$"
+numeric_pat <- "^[[:digit:]]+$"
 sne_pat <- "[sS][nN][eE]"
 
 is_all_integer <- function (vec) {
@@ -74,30 +74,31 @@ is_all_integer <- function (vec) {
     all(vec == as.integer(vec))
 }
 
-## TODO: make name_changes (able to) read from config file!
-clean_frame <- function (frame,
-                         name_changes = list(),
-                         excl_pats = list(numeric_pat, sne_pat),
-                         excl_preds = list(is_all_integer)) {
+## TODO: source this transform and why it's useful
+asinh_transform <- function (x) {
+    asinh(x / 5)
+}
+
+## TODO: make config file to canonicalize column names!
+## Return data frame which contains only marker data.
+get_tsne_input <- function (frame,
+                            excl_pats = list(numeric_pat, sne_pat),
+                            excl_preds = list(is_all_integer),
+                            transform = asinh_transform) {
     frame %>%
-        ## canonicalize column names
-        Reduce(x = name_changes, init = ., f = function (df, fun) {
-            ## fun should take a vector of column names as input and spit out a
-            ## vector out column names (in order) to take their place
-            df %>% rename_all({ fun(colnames(.)) })
-        }) %>%
         ## filter out column names by regular expression
-        Reduce(x = excl_pats, init = ., f = function (df, pat) {
-            ## each pat is a perl-compatible regular expression
+        Reduce(init = ., x = excl_pats, f = function (df, pat) {
             df %>% select_if({ !grepl(pat, colnames(.), perl = T) })
         }) %>%
         ## filter out columns by their value or type
-        Reduce(x = excl_preds, init = ., f = function (df, pred) {
+        Reduce(init = ., x = excl_preds, f = function(df, pred) {
             ## pred takes a vector and outputs a single logical value
             ## apply pred to each column of the data frame and remove columns
             ## for which it returns TRUE
             df %>% select_if({ !apply(., 2, pred) })
-        })
+        }) %>%
+        ## transform columns by "transform"
+        apply(2, match.fun(transform))
 }
 
 
