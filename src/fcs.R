@@ -5,6 +5,7 @@ library(flowUtils)
 library(CytoML)
 library(tools)
 library(Rtsne)
+library(spade, quietly = T, warn.conflicts = F)
 library(gdata, warn.conflicts = F)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
@@ -222,4 +223,49 @@ download_gates <- function (session, exp_id) {
 
 apply_gates_fcs <- function (gates_xml, fcs_files) {
     cytobank2GatingSet(gates_xml, fcs_files)
+}
+
+
+
+### Comparative clustering.
+
+daniel_read_fcs <- function (fname) {
+    read.FCS(fname, transformation = NULL, truncate_max_range = F) %>%
+        exprs %>% as.data.frame %>%
+        mutate(manual_gates = as.integer(manual_gates))
+}
+
+num_term_pops <- function (frame) {
+    pops <- frame$manual_gates %>% unique %>% sort
+    k <- length(pops)
+    stopifnot(all(pops == 1:k))
+    k
+}
+
+f_measure_clusters <- function (frame) {
+    cls <- frame$cluster %>% unique %>% sort
+    k <- length(cls)
+    stopifnot(all(cls == 1:k))
+    lapply(cls, function (cl_ind) {
+        mode_pop <- frame[frame$cluster == cl_ind,] %>% .$manual_gates %>%
+            table %>% sort(decreasing = T) %>%
+            names %>% as.integer %>% .[1]
+        n_relevant <- sum(frame$manual_gates == mode_pop &
+                          frame$cluster == cl_ind)
+        precision <- n_relevant / sum(frame$cluster == cl_ind)
+        recall <- n_relevant / sum(frame$manual_gates == mode_pop)
+        2 * precision * recall / (precision + recall)
+    }) %>% unlist %>% mean
+}
+
+cluster_kmeans <- function (frame, k) {
+    clustering <- frame %>% select(c(tSNE1, tSNE2)) %>% kmeans(centers = k)
+    frame %>% mutate(cluster = clustering$clust)
+}
+
+cluster_spade <- function (files, k) {
+    SPADE.driver(files = files, cluster_cols = c("tSNE1", "tSNE2"),
+                 transforms = NULL, k = k)
+    clustered <- sprintf("%s.density.fcs.cluster.fcs", files)
+    lapply(clustered, read_fcs) %>% Reduce(f = bind_rows)
 }
