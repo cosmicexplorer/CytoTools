@@ -3,7 +3,7 @@ library(CytobankAPI, quietly = T, warn.conflicts = F)
 library(flowWorkspace, quietly = T)
 library(flowUtils)
 library(CytoML)
-library(gdata, quietly = T, warn.conflicts = F)
+library(gdata, warn.conflicts = F)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
 
@@ -122,15 +122,6 @@ shared_markers <- function (frames) {
 
 
 ### Pull data from cytobank.
-
-## site="irishlab", username=<>, password=<>
-cytobank_request <- function (..., req) {
-    cy_sesh <- authenticate(...)
-    tryCatch({
-        match.fun(req)(cy_sesh)
-    },
-    finally = authentication.logout(cy_sesh))
-}
 
 ## check that file exists, is readable, and has the right size and contents
 invalid_fcs_dl <- function (fcs_info) {
