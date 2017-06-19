@@ -79,22 +79,25 @@ clean_frame <- function (frame,
                          name_changes = list(),
                          excl_pats = list(numeric_pat, sne_pat),
                          excl_preds = list(is_all_integer)) {
-    with_canonized_names <- frame %>%
+    frame %>%
+        ## canonicalize column names
         Reduce(x = name_changes, init = ., f = function (df, fun) {
+            ## fun should take a vector of column names as input and spit out a
+            ## vector out column names (in order) to take their place
             df %>% rename_all({ fun(colnames(.)) })
-        })
-    with_filtered_colnames <- with_canonized_names %>%
+        }) %>%
+        ## filter out column names by regular expression
         Reduce(x = excl_pats, init = ., f = function (df, pat) {
+            ## each pat is a perl-compatible regular expression
             df %>% select_if({ !grepl(pat, colnames(.), perl = T) })
-        })
-    with_filtered_values <- with_filtered_colnames %>%
+        }) %>%
+        ## filter out columns by their value or type
         Reduce(x = excl_preds, init = ., f = function (df, pred) {
             ## pred takes a vector and outputs a single logical value
             ## apply pred to each column of the data frame and remove columns
             ## for which it returns TRUE
             df %>% select_if({ !apply(., 2, pred) })
         })
-    with_filtered_values
 }
 
 
