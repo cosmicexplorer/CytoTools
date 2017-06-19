@@ -3,6 +3,8 @@ library(CytobankAPI, quietly = T, warn.conflicts = F)
 library(flowWorkspace, quietly = T)
 library(flowUtils)
 library(CytoML)
+library(tools)
+library(Rtsne)
 library(gdata, warn.conflicts = F)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
@@ -73,34 +75,26 @@ is_all_integer <- function (vec) {
 }
 
 ## TODO: make name_changes (able to) read from config file!
-clean_frame <- function (name_changes = list(),
+clean_frame <- function (frame,
+                         name_changes = list(),
                          excl_pats = list(numeric_pat, sne_pat),
-                         excl_preds = list(is_all_integer),
-                         frame) {
-    canonized <- frame %>% colnames %>%
-        Reduce(x = name_changes, init = .,
-               f = function (cols, fun) { lapply(cols, fun) }) %>%
-        set_colnames(x = frame, value = .)
-
-    names_filtered <- canonized %>% colnames %>%
-        Reduce(x = excl_pats, init = .,
-               f = function (names, pat) {
-                   matched <- grepl(pat, names, perl = T)
-                   names[matched] <- NA
-                   names
-               }) %>%
-        set_colnames(x = canonized, value = .)
-
-
-    col_value_filtered <- names_filtered %>% select_if({
-        for (pred in excl_preds) {
-            ## short-circuit failure
-            if (pred(.)) { return(FALSE) }
-        }
-        TRUE
-    })
-
-    col_value_filtered
+                         excl_preds = list(is_all_integer)) {
+    with_canonized_names <- frame %>%
+        Reduce(x = name_changes, init = ., f = function (df, fun) {
+            df %>% rename_all({ fun(colnames(.)) })
+        })
+    with_filtered_colnames <- with_canonized_names %>%
+        Reduce(x = excl_pats, init = ., f = function (df, pat) {
+            df %>% select_if({ !grepl(pat, colnames(.), perl = T) })
+        })
+    with_filtered_values <- with_filtered_colnames %>%
+        Reduce(x = excl_preds, init = ., f = function (df, pred) {
+            ## pred takes a vector and outputs a single logical value
+            ## apply pred to each column of the data frame and remove columns
+            ## for which it returns TRUE
+            df %>% select_if({ !apply(., 2, pred) })
+        })
+    with_filtered_values
 }
 
 

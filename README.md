@@ -21,7 +21,7 @@ allie-paper
     - starting pop is called "live leukocytes"
     - on all protein markers
         - not numeric ones
-    - using some existing visne analyysis in some existing experiment on cytobank
+    - using some existing visne analysis in some existing experiment on cytobank
         - so each file's t-sne axes are just for the events in that file from that total visne
 - install and run pairwise emd on all of the resulting files with tsne axes (this is an R script)
     - *emd compares events, with each file as its own "cluster", using only t-SNE axes for distance*
