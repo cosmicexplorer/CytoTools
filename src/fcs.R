@@ -16,10 +16,13 @@ library(dplyr, warn.conflicts = F)
 ## exist. multiple datasets in an fcs file is deprecated and "implementors are
 ## being discouraged to do so." it may exist, but shouldn't be supported.
 
+read_fcs_raw <- function (fname) {
+    ## TODO: are these the standard transformations for flowCore?
+    read.FCS(fname, transformation = NULL, truncate_max_range = F)
+}
+
 read_fcs <- function(fname) {
-    flowFrame_obj <- read.FCS(
-        ## TODO: are these the standard transformations for flowCore?
-        fname, transformation = NULL, truncate_max_range = F)
+    flowFrame_obj <- read_fcs_raw(fname)
     ## TODO: does any kind of data cleaning make sense here? see ../README.md
     as.data.frame(exprs(flowFrame_obj))
 }
@@ -55,8 +58,8 @@ make_flowFrame <- function (exprs, parameters, description) {
     do.call("flowFrame", args, envir = environment())
 }
 
-write_flowFrame <- function (frame, fname) {
-    write.FCS(frame, fname)
+write_flowFrame <- function (flow_obj, fname) {
+    write.FCS(flow_obj, fname)
 }
 
 
@@ -66,10 +69,11 @@ write_flowFrame <- function (frame, fname) {
 numeric_pat <- "^[[:digit:]]+$"
 sne_pat <- "[sS][nN][eE]"
 
+is_double_vec <- function (vec) {
+    is.vector(vec, mode = "double")
+}
+
 is_all_integer <- function (vec) {
-    ## vec is a column of a data frame produced by read_clean_fcs
-    ## read.FCS only produces double columns
-    stopifnot(is.vector(vec) && is.double(vec))
     ## this benchmarked as the fastest method
     all(vec == as.integer(vec))
 }
@@ -81,10 +85,13 @@ asinh_transform <- function (x) {
 
 ## TODO: make config file to canonicalize column names!
 ## Return data frame which contains only marker data.
-get_tsne_input <- function (frame,
-                            excl_pats = list(numeric_pat, sne_pat),
-                            excl_preds = list(is_all_integer),
-                            transform = asinh_transform) {
+## sample_n: equal sampling
+## sample_frac: proportional sampling
+fcs_data_cols <- function (
+    frame,
+    excl_pats = list(numeric_pat, sne_pat),
+    excl_preds = list(is_all_integer)
+    ) {
     frame %>%
         ## filter out column names by regular expression
         Reduce(init = ., x = excl_pats, f = function (df, pat) {
@@ -96,9 +103,7 @@ get_tsne_input <- function (frame,
             ## apply pred to each column of the data frame and remove columns
             ## for which it returns TRUE
             df %>% select_if({ !apply(., 2, pred) })
-        }) %>%
-        ## transform columns by "transform"
-        apply(2, match.fun(transform))
+        })
 }
 
 
@@ -109,7 +114,46 @@ shared_markers <- function (frames) {
     ## TODO: find less common columns and check if they're mistakes
     ## TODO: if columns are close but not the same (e.g. levenshtein), show a
     ## warning
-    frames %>% colnames %>% Reduce(f = intersect, x = .)
+    frames %>% lapply(colnames) %>% Reduce(f = intersect)
+}
+
+do_tsne <- function (files, n,
+                     transform = asinh_transform,
+                     outdir = getwd(), verbose = T,
+                     ...) {
+    outfiles <- gsub(
+        "\\.fcs$", sprintf("_sampled_%s.fcs", n), basename(files), perl = T)
+    sampled <- files %>% setNames(., .) %>% lapply(function (file) {
+        read_file(file) %>% sample_n(size = n)
+    })
+    ## get data columns shared between all
+    on_markers <- sampled %>% lapply(fcs_data_cols) %>% shared_markers
+    tsne <- sampled %>% lapply(function (df) {
+        ## select the shared columns and squash the raw data
+        df[,on_markers] %>% mutate_all(match.fun(transform))
+    }) %>% Reduce(f = rbind) %>%
+        ## join into one big table to perform tsne
+        Rtsne(check_duplicates = F, verbose = verbose, ...)
+    print(tsne)
+    with_sne <- lapply(1:length(sampled), function (i) {
+        ## find the tsne axes that belong to us
+        tsne_start <- ((i - 1) * n) + 1
+        tsne_range <- tsne_start:(tsne_start + n - 1)
+        ## add tsne axes and convert to flowFrame
+        sampled[[i]] %>%
+            mutate(tSNE1 = tsne$Y[tsne_range,1],
+                   tSNE2 = tsne$Y[tsne_range,2]) %>%
+            make_flowFrame
+    })
+    ## write to fcs files and check that they exist
+    with_sne %>% as("flowSet") %>%
+        ## write.flowSet is still "experimental"
+        {
+            suppressWarnings(
+                write.flowSet(x = ., outdir = outdir, filename = outfiles))
+        }
+    stopifnot(all(file.exists(outfiles)))
+    outfiles
 }
 
 
