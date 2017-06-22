@@ -4,6 +4,7 @@ library(flowWorkspace, quietly = T)
 library(flowUtils)
 library(CytoML, warn.conflicts = F)
 library(tools)
+library(digest)
 library(Rtsne, warn.conflicts = F)
 library(emdist, warn.conflicts = F)
 library(spade, quietly = T, warn.conflicts = F, verbose = F)
@@ -24,10 +25,9 @@ read_fcs_raw <- function (fname) {
     read.FCS(fname, transformation = NULL, truncate_max_range = F)
 }
 
-read_fcs <- function(fname) {
+read_fcs <- function (fname) {
     flowFrame_obj <- read_fcs_raw(fname)
-    ## TODO: does any kind of data cleaning make sense here? see ../README.md
-    as.data.frame(exprs(flowFrame_obj))
+    fname %>% read_fcs_raw %>% exprs %>% as.data.frame
 }
 
 read_text_file <- function (fname, ...) {
@@ -47,14 +47,28 @@ read_csv <- function (fname, ...) {
     read_text_file(fname, header = T, sep = ",", ...)
 }
 
+## If you need to do something weird when reading files, set this to your read
+## function.
+read_file_fun <- NULL
+## Modify this list to recognize more filetypes. Filetypes are case-insensitive.
+read_file_funs_map <- list(fcs = read_fcs,
+                           csv = read_csv,
+                           txt = read_txt)
 read_file <- function (fname) {
+    ## TODO: does any kind of data cleaning make sense here? see ../README.md
+    ## TODO: consider having a cache for this function if files are reused a lot
     ext <- file_ext(fname)
-    switch(ext,
-           fcs = read_fcs(fname),
-           csv = read_csv(fname),
-           txt = read_txt(fname),
-           stop(sprintf("unrecognized file extension '%s' for file '%s'",
-                        ext, fname)))
+    ext_lowercase <- tolower(ext)
+    reader_fun <-
+        if (!is.null(read_file_fun)) {
+            match.fun(read_file_fun)
+        } else if (ext_lowercase %in% names(read_file_funs_map)) {
+            match.fun(read_file_funs_map[[ext_lowercase]])
+        } else {
+            stop(sprintf("unrecognized extension '%s' for file '%s'",
+                         ext, fname))
+        }
+    reader_fun(fname)
 }
 
 write_txt <- function (frame, fname) {
@@ -80,6 +94,13 @@ make_flowFrame <- function (exprs, parameters, description) {
 
 write_flowFrame <- function (flow_obj, fname) {
     write.FCS(flow_obj, fname)
+}
+
+get_fcs_data_files <- function (dir = getwd(),
+                                 pattern = "\\.fcs$",
+                                 recursive = F) {
+    list.files(path = dir, pattern = pattern, all.files = T, full.names = T,
+               recursive = recursive, no.. = T)
 }
 
 
@@ -139,14 +160,10 @@ shared_markers <- function (frames) {
 
 generate_sampled_fcs <- function (files, n, use_existing = T, verbose = T) {
     num_f <- length(files)
+    file_hashes <- md5sum(files)
     outfiles <- gsub(
-        "\\.fcs$", sprintf("_sampled_%s.fcs", n), files, perl = T)
-    if (use_existing && all(file.exists(outfiles))) {
-        if (verbose) {
-            cat("using existing files for generate_sampled_fcs\n")
-        }
-        return(outfiles)
-    }
+        "\\.fcs$", sprintf("_sampled_%s_%s.fcs", n, file_hashes),
+        files, perl = T)
     if (verbose) {
         cat(sprintf("sampling %s per file for %s files\n", n, num_f))
     }
@@ -156,18 +173,33 @@ generate_sampled_fcs <- function (files, n, use_existing = T, verbose = T) {
         if (verbose) {
             cat(sprintf("sampling %s (%s/%s)...\n", file, file_idx, num_f))
         }
-        read_file(file) %>% sample_n(size = n) %>%
-            make_flowFrame %>% write.FCS(filename = outf)
+        if (use_existing && file.exists(outf)) {
+            if (verbose) {
+                cat(sprintf(
+                    "using existing file '%s' in generate_sampled_fcs\n", outf))
+            }
+        } else {
+            read_file(file) %>% sample_n(size = n) %>%
+                make_flowFrame %>% write.FCS(filename = outf)
+        }
     })
     stopifnot(all(file.exists(outfiles)))
     outfiles
 }
 
-do_tsne <- function (files, n,
+hash_all <- function (files) {
+    md5sum(files) %>% paste0(collapse = ",") %>%
+        digest(algo = "sha512", serialize = F)
+}
+
+do_tsne <- function (infiles, n, markers = NULL,
                      transform = asinh_transform, verbose = T, use_existing = T,
                      ...) {
+    files <- generate_sampled_fcs(infiles, n, use_existing, verbose)
     num_f <- length(files)
-    outfiles <- gsub("\\.fcs$", sprintf("_visne_%s.fcs", n), files, perl = T)
+    files_hash <- hash_all(files)
+    outfiles <- gsub("\\.fcs$", sprintf("_visne_%s.fcs", files_hash),
+                     files, perl = T)
     if (use_existing && all(file.exists(outfiles))) {
         if (verbose) {
             cat("using existing files for do_tsne\n")
@@ -189,7 +221,11 @@ do_tsne <- function (files, n,
     if (verbose) {
         cat("finding markers to join on...\n")
     }
-    on_markers <- sampled %>% lapply(fcs_data_cols) %>% shared_markers
+    on_markers <- if (is.null(markers)) {
+                      sampled %>% lapply(fcs_data_cols) %>% shared_markers
+                  } else {
+                      markers
+                  }
     if (verbose) {
         cat(sprintf("joining on markers:\n[%s]\n",
                     paste0(on_markers, collapse = ", ")))
@@ -228,14 +264,19 @@ do_tsne <- function (files, n,
 
 ### Analyze hierarchies of populations in a dataset.
 
-## download_all_fcs(cy, 22899) %>% generate_sampled_fcs(n = 1000) %>%
-##   do_tsne(n = 1000, perplexity = 10, max_iter = 200) %>% emd_fcs %>%
-##   read.csv(row.names = 1) %>% as.matrix %>% heatmap
+## TODO: parallelize this!
 emd_fcs <- function (files,
-                     outfile = "emd_fcs_out.csv",
-                     max_iterations = 10, verbose = T,
-                     tsne_cols = c("tSNE1", "tSNE2")) {
+                     max_iterations = 10, tsne_cols = c("tSNE1", "tSNE2")
+                     use_existing = T, verbose = T) {
     n <- length(files)
+    files_hash <- hash_all(files)
+    outfile <- sprintf("emd_fcs_out_%s_%s.csv", max_iterations, files_hash)
+    if (use_existing && file.exists(outfile)) {
+        if (verbose) {
+            cat(sprintf("using existing file '%s' in emd_fcs\n", outfile))
+        }
+        return(outfile)
+    }
     if (verbose) {
         cat(sprintf("starting pairwise emd on %s files...\n", n))
     }
@@ -254,7 +295,6 @@ emd_fcs <- function (files,
         }
         i_mat <- mats[[i]]
         i_rows <- dim(i_mat)[1]
-        ## TODO: parallelize this!
         if (i > 1) {
             for (j in 1:(i - 1)) {
                 output[i,j] <- output[j,i]
@@ -279,10 +319,6 @@ emd_fcs <- function (files,
     rownames(output) <- files
     write.table(output, outfile, sep = ",")
     outfile
-}
-
-plot_emd <- function (files) {
-    ggplot()
 }
 
 ## look at xtabs/ftable/table() and summary/summarize/aggregate/group_by()
@@ -343,6 +379,18 @@ download_all_fcs <- function (session, exp_id, verbose = T) {
         }
     }
     fcs_info$filename
+}
+
+download_fcs_cytobank <- function (experiments, verbose = T) {
+    if (length(experiments) == 0) { return(character()) }
+    library(getPass)
+    session <- authenticate(readline("site (<site>.cytobank.org): "),
+                            readline("username: "),
+                            getPass(forcemask = T))
+    Reduce(f = c, init = character(),
+           x = lapply(experiments, function (exp_id) {
+               download_all_fcs(session, exp_id, verbose = verbose)
+           }))
 }
 
 download_gates <- function (session, exp_id) {
