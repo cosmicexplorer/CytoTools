@@ -4,7 +4,8 @@ library(flowWorkspace, quietly = T)
 library(flowUtils)
 library(CytoML)
 library(tools)
-library(Rtsne)
+library(Rtsne, warn.conflicts = F)
+library(emdist, warn.conflicts = F)
 library(spade, quietly = T, warn.conflicts = F)
 library(gdata, warn.conflicts = F)
 library(magrittr, warn.conflicts = F)
@@ -44,6 +45,14 @@ read_file <- function (fname) {
            txt = read_txt(fname),
            stop(sprintf("unrecognized file extension '%s' for file '%s'",
                         ext, fname)))
+}
+
+write_txt <- function (frame, fname) {
+    write.table(frame, sep = '\t', row.names = F, file = fname)
+}
+
+write_csv <- function (frame, fname) {
+    write.table(frame, sep = ',', row.names = F, file = fname)
 }
 
 ## TODO: check validity of data in df? against params/description?
@@ -161,12 +170,38 @@ do_tsne <- function (files, n,
 
 ### Analyze hierarchies of populations in a dataset.
 
+emd_fcs <- function (files, binning_factor = 2, max_iterations = 10,
+                     tsne_cols = c("tSNE1", "tSNE2")) {
+    n <- length(files)
+    stopifnot(is.vector(binning_factor) && length(binning_factor) == 1)
+    mats <- lapply(files, function (file) {
+        read_file(file) %>% select(tsne_cols) %>% as.matrix
+    })
+    output <- matrix(vector(mode = "double", length = n * n), nrow = n)
+    for (i in 1:n) {
+        i_mat <- mats[[i]]
+        i_rows <- dim(i_mat)[1]
+        ## TODO: this is a triangular matrix; we're doing 2x the work we need to
+        for (j in 1:n) {
+            j_mat <- mats[[j]]
+            j_rows <- dim(j_mat)[1]
+            output[i,j] <- emdw(i_mat, rep(1, i_rows),
+                                j_mat, rep(1, j_rows),
+                                max.iter = max_iterations)
+        }
+    }
+    colnames(output) <- files
+    rownames(output) <- files
+    output
+}
+
 ## look at xtabs/ftable/table() and summary/summarize/aggregate/group_by()
+
 
 
 ### Pull data from cytobank.
 
-## check that file exists, is readable, and has the right size and contents
+## TRUE unless file exists, is readable, and has the right size and contents
 invalid_fcs_dl <- function (fcs_info) {
     fcs_info %$%
         {
@@ -221,7 +256,7 @@ download_gates <- function (session, exp_id) {
     gates.gatingML_download(session, exp_id)
 }
 
-apply_gates_fcs <- function (gates_xml, fcs_files) {
+apply_gates <- function (gates_xml, fcs_files) {
     cytobank2GatingSet(gates_xml, fcs_files)
 }
 
@@ -263,9 +298,13 @@ cluster_kmeans <- function (frame, k) {
     frame %>% mutate(cluster = clustering$clust)
 }
 
-cluster_spade <- function (files, k) {
-    SPADE.driver(files = files, cluster_cols = c("tSNE1", "tSNE2"),
-                 transforms = NULL, k = k)
+cluster_spade <- function (files) {
+    k <- lapply(files, read_file) %>% Reduce(f = bind_rows) %>% num_term_pops
+    cat(sprintf("k = %s\n", k))
+    suppressWarnings(
+        SPADE.driver(files = files, cluster_cols = c("tSNE1", "tSNE2"),
+                     transforms = NULL, k = k,
+                     downsampling_target_percent = .01))
     clustered <- sprintf("%s.density.fcs.cluster.fcs", files)
     lapply(clustered, read_fcs) %>% Reduce(f = bind_rows)
 }
