@@ -2,7 +2,7 @@ library(flowCore, warn.conflicts = F)
 library(CytobankAPI, quietly = T, warn.conflicts = F)
 library(flowWorkspace, quietly = T)
 library(flowUtils)
-library(CytoML)
+library(CytoML, warn.conflicts = F)
 library(tools)
 library(Rtsne, warn.conflicts = F)
 library(emdist, warn.conflicts = F)
@@ -10,6 +10,7 @@ library(spade, quietly = T, warn.conflicts = F)
 library(gdata, warn.conflicts = F)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
+library(ggplot2)
 
 
 ### Read/write different representations of flow data.
@@ -140,20 +141,32 @@ do_tsne <- function (files, n,
                      transform = asinh_transform,
                      outdir = getwd(), verbose = T,
                      ...) {
+    num_f <- length(files)
     outfiles <- gsub(
         "\\.fcs$", sprintf("_sampled_%s.fcs", n), basename(files), perl = T)
+    if (verbose) {
+        cat(sprintf("sampling %s per file for %s files\n", n, num_f))
+    }
+    file_idx <- 1
     sampled <- files %>% setNames(., .) %>% lapply(function (file) {
+        if (verbose) {
+            cat(sprintf("reading %s (%s/%s)...\n", file, file_idx, num_f))
+        }
+        file_idx <<- file_idx + 1
         read_file(file) %>% sample_n(size = n)
     })
     ## get data columns shared between all
     on_markers <- sampled %>% lapply(fcs_data_cols) %>% shared_markers
+    if (verbose) {
+        cat(sprintf("joining on markers:\n[%s]\n",
+                    paste0(on_markers, collapse = ", ")))
+    }
     tsne <- sampled %>% lapply(function (df) {
         ## select the shared columns and squash the raw data
         df[,on_markers] %>% mutate_all(match.fun(transform))
     }) %>% Reduce(f = rbind) %>%
         ## join into one big table to perform tsne
         Rtsne(check_duplicates = F, verbose = verbose, ...)
-    print(tsne)
     with_sne <- lapply(1:length(sampled), function (i) {
         ## find the tsne axes that belong to us
         tsne_start <- ((i - 1) * n) + 1
@@ -179,10 +192,10 @@ do_tsne <- function (files, n,
 
 ### Analyze hierarchies of populations in a dataset.
 
-emd_fcs <- function (files, binning_factor = 2, max_iterations = 10,
+## download_all_fcs(cy, 22899) %>% do_tsne(n = 10000) %>% emd_fcs %>% heatmap
+emd_fcs <- function (files, max_iterations = 10,
                      tsne_cols = c("tSNE1", "tSNE2")) {
     n <- length(files)
-    stopifnot(is.vector(binning_factor) && length(binning_factor) == 1)
     mats <- lapply(files, function (file) {
         read_file(file) %>% select(tsne_cols) %>% as.matrix
     })
@@ -202,6 +215,10 @@ emd_fcs <- function (files, binning_factor = 2, max_iterations = 10,
     colnames(output) <- files
     rownames(output) <- files
     output
+}
+
+plot_emd <- function (files) {
+    ggplot()
 }
 
 ## look at xtabs/ftable/table() and summary/summarize/aggregate/group_by()
@@ -235,28 +252,31 @@ download_all_fcs <- function (session, exp_id, verbose = T) {
     size_all <- sum(to_dl$fileSize)
     size_cur <- 0
     if (verbose) {
-        cat(sprintf("total size of files to download: %s\n",
+        cat(sprintf("total (unzipped) size of files to download: %s\n",
                     humanReadable(size_all, width = 4)))
     }
-    for (i in 1:dim(to_dl)[1]) {
-        row <- to_dl[i,]
-        if (verbose) {
-            cat(sprintf("%s downloaded (%s%% done)\n",
-                        humanReadable(size_cur, width = 4),
-                        round(size_cur / size_all * 100, digits = 1)))
-            cat(sprintf("downloading %s (zipped size: %s, id: %s)...\n",
-                        row$filename, row$humansize, row$id))
+    num_to_dl <- dim(to_dl)[1]
+    if (num_to_dl != 0) {
+        for (i in 1:num_to_dl) {
+            row <- to_dl[i,]
+            if (verbose) {
+                cat(sprintf("%s downloaded (%s%% done)\n",
+                            humanReadable(size_cur, width = 4),
+                            round(size_cur / size_all * 100, digits = 1)))
+                cat(sprintf("downloading %s (unzipped size: %s, id: %s)...\n",
+                            row$filename, row$humansize, row$id))
+            }
+            taken <- system.time(
+                fcs_files.download_zip(session, exp_id, row$id) %>% unzip)
+            cat(sprintf("download of %s took %s seconds\n",
+                        row$filename, round(taken[3], 2)))
+            if (any(invalid_fcs_dl(row))) {
+                stop(sprintf(paste("download of %s is corrupt",
+                                   "-- check your internet connection"),
+                             row$filename))
+            }
+            size_cur <- size_cur + row$fileSize
         }
-        taken <- system.time(
-            fcs_files.download_zip(session, exp_id, row$id) %>% unzip)
-        cat(sprintf("download of %s took %s seconds\n",
-                    row$filename, round(taken[3], 2)))
-        if (any(invalid_fcs_dl(row))) {
-            stop(sprintf(paste("download of %s is corrupt",
-                               "-- check your internet connection"),
-                         row$filename))
-        }
-        size_cur <- size_cur + row$fileSize
     }
     fcs_info$filename
 }
