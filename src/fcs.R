@@ -29,12 +29,21 @@ read_fcs <- function(fname) {
     as.data.frame(exprs(flowFrame_obj))
 }
 
-read_csv <- function (fname, header = TRUE, sep = ',', ...) {
-    read.table(fname, header = header, sep = sep, ...)
+read_text_file <- function (fname, ...) {
+    tryCatch(
+        read.table(fname, header = header, sep = sep, ...),
+        error = function (e) {
+            read.table(fname, skip = 1, ...)
+        }
+    )
 }
 
-read_txt <- function (fname, header = TRUE, sep = '\t', ...) {
-    read.table(fname, header = header, sep = sep, ...)
+read_txt <- function (fname, ...) {
+    read_text_file(fname, header = T, sep = "\t", ...)
+}
+
+read_csv <- function (fname, ...) {
+    read_text_file(fname, header = T, sep = ",", ...)
 }
 
 read_file <- function (fname) {
