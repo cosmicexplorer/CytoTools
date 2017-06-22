@@ -6,7 +6,7 @@ library(CytoML, warn.conflicts = F)
 library(tools)
 library(Rtsne, warn.conflicts = F)
 library(emdist, warn.conflicts = F)
-library(spade, quietly = T, warn.conflicts = F)
+library(spade, quietly = T, warn.conflicts = F, verbose = F)
 library(gdata, warn.conflicts = F)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
@@ -137,29 +137,63 @@ shared_markers <- function (frames) {
     frames %>% lapply(colnames) %>% Reduce(f = intersect)
 }
 
-do_tsne <- function (files, n,
-                     transform = asinh_transform,
-                     outdir = getwd(), verbose = T,
-                     ...) {
+generate_sampled_fcs <- function (files, n, use_existing = T, verbose = T) {
     num_f <- length(files)
     outfiles <- gsub(
-        "\\.fcs$", sprintf("_sampled_%s.fcs", n), basename(files), perl = T)
+        "\\.fcs$", sprintf("_sampled_%s.fcs", n), files, perl = T)
+    if (use_existing && all(file.exists(outfiles))) {
+        if (verbose) {
+            cat("using existing files for generate_sampled_fcs\n")
+        }
+        return(outfiles)
+    }
     if (verbose) {
         cat(sprintf("sampling %s per file for %s files\n", n, num_f))
     }
-    file_idx <- 1
-    sampled <- files %>% setNames(., .) %>% lapply(function (file) {
+    lapply(1:num_f, function (file_idx) {
+        file <- files[file_idx]
+        outf <- outfiles[file_idx]
+        if (verbose) {
+            cat(sprintf("sampling %s (%s/%s)...\n", file, file_idx, num_f))
+        }
+        read_file(file) %>% sample_n(size = n) %>%
+            make_flowFrame %>% write.FCS(filename = outf)
+    })
+    stopifnot(all(file.exists(outfiles)))
+    outfiles
+}
+
+do_tsne <- function (files, n,
+                     transform = asinh_transform, verbose = T, use_existing = T,
+                     ...) {
+    num_f <- length(files)
+    outfiles <- gsub("\\.fcs$", sprintf("_visne_%s.fcs", n), files, perl = T)
+    if (use_existing && all(file.exists(outfiles))) {
+        if (verbose) {
+            cat("using existing files for do_tsne\n")
+        }
+        return(outfiles)
+    }
+    if (verbose) {
+        cat(sprintf("truncating to %s rows per file for %s files\n",
+                    n, num_f))
+    }
+    sampled <- lapply(1:num_f, function (file_idx) {
+        file <- files[file_idx]
         if (verbose) {
             cat(sprintf("reading %s (%s/%s)...\n", file, file_idx, num_f))
         }
-        file_idx <<- file_idx + 1
-        read_file(file) %>% sample_n(size = n)
+        read_file(file) %>% slice(1:n)
     })
     ## get data columns shared between all
+    if (verbose) {
+        cat("finding markers to join on...\n")
+    }
     on_markers <- sampled %>% lapply(fcs_data_cols) %>% shared_markers
     if (verbose) {
         cat(sprintf("joining on markers:\n[%s]\n",
                     paste0(on_markers, collapse = ", ")))
+        cat("performing visne...\n")
     }
     tsne <- sampled %>% lapply(function (df) {
         ## select the shared columns and squash the raw data
@@ -167,23 +201,25 @@ do_tsne <- function (files, n,
     }) %>% Reduce(f = rbind) %>%
         ## join into one big table to perform tsne
         Rtsne(check_duplicates = F, verbose = verbose, ...)
-    with_sne <- lapply(1:length(sampled), function (i) {
+    if (verbose) {
+        cat("writing visne results to files...\n")
+    }
+    ## write to fcs files and check that they exist
+    lapply(1:num_f, function (i) {
+        inf <- sampled[[i]]
+        outf <- outfiles[i]
+        if (verbose) {
+            cat(sprintf("writing %s (%s/%s)...\n", outf, i, num_f))
+        }
         ## find the tsne axes that belong to us
         tsne_start <- ((i - 1) * n) + 1
         tsne_range <- tsne_start:(tsne_start + n - 1)
         ## add tsne axes and convert to flowFrame
-        sampled[[i]] %>%
+        inf %>%
             mutate(tSNE1 = tsne$Y[tsne_range,1],
                    tSNE2 = tsne$Y[tsne_range,2]) %>%
-            make_flowFrame
+            make_flowFrame %>% write.FCS(filename = outf)
     })
-    ## write to fcs files and check that they exist
-    with_sne %>% as("flowSet") %>%
-        ## write.flowSet is still "experimental"
-        {
-            suppressWarnings(
-                write.flowSet(x = ., outdir = outdir, filename = outfiles))
-        }
     stopifnot(all(file.exists(outfiles)))
     outfiles
 }
@@ -192,29 +228,56 @@ do_tsne <- function (files, n,
 
 ### Analyze hierarchies of populations in a dataset.
 
-## download_all_fcs(cy, 22899) %>% do_tsne(n = 10000) %>% emd_fcs %>% heatmap
-emd_fcs <- function (files, max_iterations = 10,
+## download_all_fcs(cy, 22899) %>% generate_sampled_fcs(n = 1000) %>%
+##   do_tsne(n = 1000, perplexity = 10, max_iter = 200) %>% emd_fcs %>%
+##   read.csv %>% as.matrix %>% heatmap
+emd_fcs <- function (files,
+                     outfile = "emd_fcs_out.csv",
+                     max_iterations = 10, verbose = T,
                      tsne_cols = c("tSNE1", "tSNE2")) {
     n <- length(files)
+    if (verbose) {
+        cat(sprintf("starting pairwise emd on %s files...\n", n))
+    }
+    file_idx <- 1
     mats <- lapply(files, function (file) {
+        if (verbose) {
+            cat(sprintf("reading file %s (%s/%s)...\n", file, file_idx, n))
+        }
+        file_idx <<- file_idx + 1
         read_file(file) %>% select(tsne_cols) %>% as.matrix
     })
     output <- matrix(vector(mode = "double", length = n * n), nrow = n)
     for (i in 1:n) {
+        if (verbose) {
+            cat(sprintf("row %s/%s\n", i, n))
+        }
         i_mat <- mats[[i]]
         i_rows <- dim(i_mat)[1]
         ## TODO: this is a triangular matrix; we're doing 2x the work we need to
-        for (j in 1:n) {
-            j_mat <- mats[[j]]
-            j_rows <- dim(j_mat)[1]
-            output[i,j] <- emdw(i_mat, rep(1, i_rows),
-                                j_mat, rep(1, j_rows),
-                                max.iter = max_iterations)
+        if (i > 1) {
+            for (j in 1:(i - 1)) {
+                output[i,j] <- output[j,i]
+            }
+        }
+        output[i,i] <- 0
+        if (i < n) {
+            for (j in (i + 1):n) {
+                if (verbose) {
+                    cat(sprintf("column %s/%s\n", j, n))
+                }
+                j_mat <- mats[[j]]
+                j_rows <- dim(j_mat)[1]
+                output[i,j] <- emdw(i_mat, rep(1, i_rows),
+                                    j_mat, rep(1, j_rows),
+                                    max.iter = max_iterations)
+            }
         }
     }
     colnames(output) <- files
     rownames(output) <- files
-    output
+    write.table(output, outfile, sep = ",")
+    outfile
 }
 
 plot_emd <- function (files) {
