@@ -70,6 +70,7 @@ pairwise_emd_table <- emd_fcs(with_tsne, max_iterations = 10,
                               use_existing = T, verbose = verbose)
 
 emd_matrix <- as.matrix(read.csv(pairwise_emd_table, row.names = 1))
+## TODO: sort here!
 
 pdf(heatmap_outfile)
 heatmap(emd_matrix, Rowv = NA, Colv = NA, col = color_palette)

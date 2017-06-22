@@ -161,9 +161,12 @@ shared_markers <- function (frames) {
 generate_sampled_fcs <- function (files, n, use_existing = T, verbose = T) {
     num_f <- length(files)
     file_hashes <- md5sum(files)
-    outfiles <- gsub(
-        "\\.fcs$", sprintf("_sampled_%s_%s.fcs", n, file_hashes),
-        files, perl = T)
+    outfiles <- lapply(1:num_f, function (i) {
+        cur_file <- files[i]
+        cur_hash <- file_hashes[i]
+        gsub("\\.fcs$", sprintf("_sampled_%s_%s.fcs", n, cur_hash),
+             cur_file, perl = T)
+    }) %>% unlist
     if (verbose) {
         cat(sprintf("sampling %s per file for %s files\n", n, num_f))
     }
@@ -187,8 +190,12 @@ generate_sampled_fcs <- function (files, n, use_existing = T, verbose = T) {
     outfiles
 }
 
-hash_all <- function (files) {
-    md5sum(files) %>% paste0(collapse = ",") %>%
+hash_all <- function (files, sort_sums = T) {
+    checksums <- md5sum(files)
+    if (sort_sums) {
+        checksums <- checksums %>% sort
+    }
+    checksums %>% paste0(collapse = ",") %>%
         digest(algo = "sha512", serialize = F)
 }
 
@@ -202,7 +209,8 @@ do_tsne <- function (infiles, n, markers = NULL,
                      files, perl = T)
     if (use_existing && all(file.exists(outfiles))) {
         if (verbose) {
-            cat("using existing files for do_tsne\n")
+            cat(sprintf("using existing files for do_tsne:\n[%s]\n",
+                        paste0(outfiles, collapse = ", ")))
         }
         return(outfiles)
     }
@@ -266,7 +274,7 @@ do_tsne <- function (infiles, n, markers = NULL,
 
 ## TODO: parallelize this!
 emd_fcs <- function (files,
-                     max_iterations = 10, tsne_cols = c("tSNE1", "tSNE2")
+                     max_iterations = 10, tsne_cols = c("tSNE1", "tSNE2"),
                      use_existing = T, verbose = T) {
     n <- length(files)
     files_hash <- hash_all(files)
