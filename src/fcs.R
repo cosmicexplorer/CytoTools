@@ -230,7 +230,7 @@ do_tsne <- function (files, n,
 
 ## download_all_fcs(cy, 22899) %>% generate_sampled_fcs(n = 1000) %>%
 ##   do_tsne(n = 1000, perplexity = 10, max_iter = 200) %>% emd_fcs %>%
-##   read.csv %>% as.matrix %>% heatmap
+##   read.csv(row.names = 1) %>% as.matrix %>% heatmap
 emd_fcs <- function (files,
                      outfile = "emd_fcs_out.csv",
                      max_iterations = 10, verbose = T,
@@ -254,7 +254,7 @@ emd_fcs <- function (files,
         }
         i_mat <- mats[[i]]
         i_rows <- dim(i_mat)[1]
-        ## TODO: this is a triangular matrix; we're doing 2x the work we need to
+        ## TODO: parallelize this!
         if (i > 1) {
             for (j in 1:(i - 1)) {
                 output[i,j] <- output[j,i]
@@ -268,6 +268,7 @@ emd_fcs <- function (files,
                 }
                 j_mat <- mats[[j]]
                 j_rows <- dim(j_mat)[1]
+                ## FIXME: max.iter is not a real parameter used with emd!
                 output[i,j] <- emdw(i_mat, rep(1, i_rows),
                                     j_mat, rep(1, j_rows),
                                     max.iter = max_iterations)
