@@ -35,7 +35,35 @@ cytobank_fcs <- download_fcs_cytobank(cytobank_experiments, verbose = verbose)
 ##   recognize that and skip the initial blank line.
 data_files <- list.files(pattern = "\\.fcs$", ignore.case = T,
                          all.files = T, full.names = T, recursive = F,
-                         no.. = T)[1:13]
+                         no.. = T)
+
+## `sort_by_component()`: splits filenames into pieces and sorts them.
+##   sort_by_component() uses the string in `split_by` to break filenames into
+##   parts.
+##
+##   `orders` is a list of character vectors. If a component shows up here at
+##   the correct index, its file is ordered before other files. Among files
+##   which have matching components at each index, the order is determined by
+##   the order in the character vector at that index.
+##
+##   Perhaps it's best to show an example:
+##
+##   > data_files <- c("MB004_6m_panel2.fcs", "MB004_3wk_panel2.fcs",
+##                     "MB004_12wk_panel2.fcs", "MB004_pre_panel2.fcs",
+##                     "MB005_12wk_panel2.fcs")
+##   > sort_by_component(
+##       data_files,
+##       split_by = "_",
+##       orders = list(c("MB005"), c("pre", "3wk", "12wk", "6m")))
+##   [1] "MB005_12wk_panel2.fcs" "MB004_pre_panel2.fcs"  "MB004_3wk_panel2.fcs"
+##   [4] "MB004_12wk_panel2.fcs" "MB004_6m_panel2.fcs"
+##
+##   With the default arguments, `data_files` is simply sorted alphabetically by
+##   file name.
+data_files <- sort_by_component(
+    data_files,
+    split_by = "",
+    orders = list())
 
 ## `with_tsne`: Char vector of files produced by do_tsne().
 ##   do_tsne() takes a random sample of `n` events per input file (without
@@ -66,11 +94,11 @@ with_tsne <- do_tsne(data_files, markers = NULL,
 ##   Increasing this value *typically* does not change the result at all.
 ##
 ##   `use_existing` is the same as in do_tsne().
-pairwise_emd_table <- emd_fcs(with_tsne, max_iterations = 10,
+pairwise_emd_table <- emd_fcs(with_tsne,
+                              max_iterations = 10,
                               use_existing = T, verbose = verbose)
 
 emd_matrix <- as.matrix(read.csv(pairwise_emd_table, row.names = 1))
-## TODO: sort here!
 
 pdf(heatmap_outfile)
 heatmap(emd_matrix, Rowv = NA, Colv = NA, col = color_palette)

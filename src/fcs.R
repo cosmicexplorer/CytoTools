@@ -272,24 +272,23 @@ do_tsne <- function (infiles, n, markers = NULL,
 
 ### Analyze hierarchies of populations in a dataset.
 
-sort_component_helper <- function (strs, splits, orders) {
-    n <- length(strs)
+sort_component_helper <- function (splits, indices, orders) {
+    n <- length(indices)
     if (n == 0) {
-        return(strs)
+        return(indices)
     }
-    stopifnot(length(splits) == n)
-    empty_p <- lapply(1:n, function (i) length(splits[[i]]) == 0) %>% unlist
+    empty_p <- lapply(indices, function (i) length(splits[[i]]) == 0) %>% unlist
     if (all(empty_p)) {
-        return(strs)
+        return(indices)
     }
-    empty <- strs[empty_p]
-    nonempty_inds <- which(!empty_p)
+    nonempty_inds <- indices[!empty_p]
     next_orders <- orders[-1]
-    next_splits <- lapply(1:n, function (i) splits[[i]][-1])
-    cur_splits <- lapply(1:n, function (i) splits[[i]][1]) %>% unlist
+    next_splits <- lapply(splits, function (cur) cur[-1])
+    cur_splits <- lapply(indices, function (i) splits[[i]][1]) %>% unlist
     recognized <- if (length(orders) > 0) { orders[[1]] } else { character() }
-    lvls <- cur_splits[!(cur_splits %in% recognized)] %>% sort %>% unique %>%
-        { c(recognized, .) }
+    lvls <- cur_splits[!(cur_splits %in% recognized)] %>% sort %>% unique %>% {
+        as.character(c(recognized, .))
+    }
     nonempty_reduced <- Reduce(
         x = lvls,
         init = list(result = list(),
@@ -301,24 +300,29 @@ sort_component_helper <- function (strs, splits, orders) {
             matching <- lapply(cur$remaining, function (i) {
                 splits[[i]][1] == level
             }) %>% unlist
-            matching_inds <- cur$remaining[matching]
             matched_sorted <- sort_component_helper(
-                strs[matching_inds], next_splits[matching_inds], next_orders)
+                next_splits, cur$remaining[matching], next_orders)
             list(result = c(cur$result, matched_sorted),
                  remaining = cur$remaining[!matching])
         })
     stopifnot(length(nonempty_reduced$remaining) == 0)
-    c(empty, nonempty_reduced$result) %>% unlist
+    c(indices[empty_p], nonempty_reduced$result) %>% unlist
 }
 
 sort_by_component <- function (strs, split_by,
-                               orders = list(), split_fixed = T) {
+                               orders = list(), split_fixed = T,
+                               value = T) {
     splits <- if (split_fixed) {
                   strsplit(strs, split_by, fixed = T)
               } else {
                   strsplit(strs, split_by, perl = T)
               }
-    sort_component_helper(strs, splits, orders)
+    indices <- sort_component_helper(splits, 1:length(splits), orders)
+    if (value) {
+        strs[indices]
+    } else {
+        indices
+    }
 }
 
 ## TODO: parallelize this!
@@ -372,6 +376,7 @@ emd_fcs <- function (files,
             }
         }
     }
+    files_sorted <- files[sort_by_component(files, "_", )]
     colnames(output) <- files
     rownames(output) <- files
     write.table(output, outfile, sep = ",")
