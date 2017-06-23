@@ -164,53 +164,74 @@ shared_markers <- function (frames) {
 
 generate_sampled_fcs <- function (files, n, use_existing = T, verbose = T) {
     num_f <- length(files)
-    file_hashes <- md5sum(files)
     outfiles <- lapply(1:num_f, function (i) {
         cur_file <- files[i]
-        cur_hash <- file_hashes[i]
-        gsub("\\.fcs$", sprintf("_sampled_%s_%s.fcs", n, cur_hash),
-             cur_file, perl = T)
+        suffix <- sprintf("_sampled_%s_file_%s.fcs", n, md5sum(cur_file))
+        gsub("\\.fcs$", suffix, cur_file, perl = T)
     }) %>% unlist
     if (verbose) {
-        cat(sprintf("sampling %s per file for %s files\n", n, num_f))
+        cat(sprintf("sampling %s events per file for %s files\n", n, num_f))
     }
     lapply(1:num_f, function (file_idx) {
         file <- files[file_idx]
-        outf <- outfiles[file_idx]
+        outfile <- outfiles[file_idx]
         if (verbose) {
             cat(sprintf("sampling %s (%s/%s)...\n", file, file_idx, num_f))
         }
-        if (use_existing && file.exists(outf)) {
+        if (use_existing && file.exists(outfile)) {
             if (verbose) {
-                cat(sprintf(
-                    "using existing file '%s' in generate_sampled_fcs\n", outf))
+                cat(sprintf("using existing file %s\n", outfile))
             }
         } else {
             read_file(file) %>% sample_n(size = n) %>%
-                make_flowFrame %>% write.FCS(filename = outf)
+                make_flowFrame %>% write.FCS(filename = outfile)
         }
     })
     stopifnot(all(file.exists(outfiles)))
     outfiles
 }
 
-hash_all <- function (files, sort_sums = T) {
+hash_file_set <- function (files, sort_sums = T) {
     checksums <- md5sum(files)
     if (sort_sums) {
         checksums <- checksums %>% sort
     }
-    checksums %>% paste0(collapse = ",") %>%
-        digest(algo = "sha512", serialize = F)
+    checksums %>% digest(algo = "sha512")
 }
 
-do_tsne <- function (infiles, n, markers = NULL,
-                     transform = asinh_transform, verbose = T, use_existing = T,
+checksum_named_arglist <- function (arglist) {
+    if (any(names(arglist) == "")) {
+        nm <- names(arglist)
+        args_str <- lapply(1:length(arglist), function (i) {
+            name <- nm[[i]]
+            name_str <-
+                if (name != "") { name } else { sprintf("<unnamed %s>", i) }
+            sprintf("%s = %s", name_str, arglist[[i]])
+        }) %>% unlist %>% paste(collapse = ", ")
+        stop(sprintf(paste("the dotted arguments (...) given all need names.",
+                           "the arguments were:\n(%s)\n"),
+                     args_str))
+    }
+    digest(arglist, algo = "sha512", serialize = TRUE)
+}
+
+do_tsne <- function (infiles, n,
+                     markers = NULL, transform = asinh_transform,
+                     verbose = T, use_existing = T,
                      ...) {
-    files <- generate_sampled_fcs(infiles, n, use_existing, verbose)
-    num_f <- length(files)
-    files_hash <- hash_all(files)
-    outfiles <- gsub("\\.fcs$", sprintf("_visne_%s.fcs", files_hash),
-                     files, perl = T)
+    num_f <- length(infiles)
+    sampled_files <- generate_sampled_fcs(infiles, n, use_existing, verbose)
+    stopifnot(num_f == length(sampled_files))
+    tsne_dotted_args <- list(...)
+    args_hash <- digest(
+        algo = "sha512",
+        list(infiles = hash_file_set(sampled_files),
+             n = n,
+             markers = markers,
+             transform = transform,
+             dotted = checksum_named_arglist(tsne_dotted_args)))
+    suffix <- sprintf("_visne_events_%s_args_%s.fcs", n, args_hash)
+    outfiles <- gsub("\\.fcs$", suffix, sampled_files, perl = T)
     if (use_existing && all(file.exists(outfiles))) {
         if (verbose) {
             cat(sprintf("using existing files for do_tsne:\n[%s]\n",
@@ -222,8 +243,8 @@ do_tsne <- function (infiles, n, markers = NULL,
         cat(sprintf("truncating to %s rows per file for %s files\n",
                     n, num_f))
     }
-    sampled <- lapply(1:num_f, function (file_idx) {
-        file <- files[file_idx]
+    sampled_frames <- lapply(1:num_f, function (file_idx) {
+        file <- sampled_files[file_idx]
         if (verbose) {
             cat(sprintf("reading %s (%s/%s)...\n", file, file_idx, num_f))
         }
@@ -233,40 +254,45 @@ do_tsne <- function (infiles, n, markers = NULL,
     if (verbose) {
         cat("finding markers to join on...\n")
     }
-    on_markers <- if (is.null(markers)) {
-                      sampled %>% lapply(fcs_data_cols) %>% shared_markers
-                  } else {
-                      markers
-                  }
+    on_markers <-
+        if (!is.null(markers)) {
+            markers
+        } else {
+            sampled_frames %>% lapply(fcs_data_cols) %>% shared_markers
+        }
     if (verbose) {
         cat(sprintf("joining on markers:\n[%s]\n",
                     paste0(on_markers, collapse = ", ")))
         cat("performing visne...\n")
     }
-    tsne <- sampled %>% lapply(function (df) {
+    ## join into one big table to perform tsne
+    joined <- sampled_frames %>% lapply(function (df) {
         ## select the shared columns and squash the raw data
+        ## throws error if a frame doesn't have all the markers specified
         df[,on_markers] %>% mutate_all(match.fun(transform))
-    }) %>% Reduce(f = rbind) %>%
-        ## join into one big table to perform tsne
-        Rtsne(check_duplicates = F, verbose = verbose, ...)
+    }) %>% Reduce(f = rbind)
+    rtsne_args <- c(
+        list(X = joined, dims = 2, check_duplicates = F, verbose = verbose),
+        tsne_dotted_args)
+    tsne_frame <- do.call(Rtsne, rtsne_args)
     if (verbose) {
         cat("writing visne results to files...\n")
     }
     ## write to fcs files and check that they exist
     lapply(1:num_f, function (i) {
-        inf <- sampled[[i]]
-        outf <- outfiles[i]
+        sampled_frame <- sampled_frames[[i]]
+        outfile <- outfiles[i]
         if (verbose) {
-            cat(sprintf("writing %s (%s/%s)...\n", outf, i, num_f))
+            cat(sprintf("writing %s (%s/%s)...\n", outfile, i, num_f))
         }
         ## find the tsne axes that belong to us
         tsne_start <- ((i - 1) * n) + 1
         tsne_range <- tsne_start:(tsne_start + n - 1)
         ## add tsne axes and convert to flowFrame
-        inf %>%
-            mutate(tSNE1 = tsne$Y[tsne_range,1],
-                   tSNE2 = tsne$Y[tsne_range,2]) %>%
-            make_flowFrame %>% write.FCS(filename = outf)
+        sampled_frame %>%
+            mutate(tSNE1 = tsne_frame$Y[tsne_range,1],
+                   tSNE2 = tsne_frame$Y[tsne_range,2]) %>%
+            make_flowFrame %>% write.FCS(filename = outfile)
     })
     stopifnot(all(file.exists(outfiles)))
     outfiles
@@ -333,48 +359,51 @@ write_matrix <- function (mat, outfile, ...) {
     write.table(mat, outfile, sep = ",", ...)
 }
 
+reorder_emd_matrix <- function (files, outfile, verbose) {
+    ## ensure rows/cols of output are in order specified by current `files`
+    ## argument. this is so we can reuse the emd matrix if the input files
+    ## are the same, but use a new sorted order.
+    if (verbose) {
+        cat(sprintf("using existing file '%s' in emd_fcs\n", outfile))
+    }
+    cur <- read.csv(outfile, row.names = 1) %>% as.matrix
+    dims <- dim(cur)
+    stopifnot(dims[1] == dims[2] &&
+              all(rownames(cur) == colnames(cur)))
+    files_prev_order <- colnames(cur)
+    if (!all(files_prev_order == files)) {
+        if (verbose) {
+            cat(sprintf(
+                "reordering existing matrix in '%s' by input files:[%s]\n",
+                outfile, paste(files, collapse = ", ")))
+        }
+        stopifnot(all(sort(files_prev_order) == sort(files)))
+        permut <- ordered(files_prev_order, levels = files) %>% order
+        write_matrix(cur[permut,permut], outfile)
+    }
+    outfile
+}
+
 ## TODO: parallelize this!
-emd_fcs <- function (files,
-                     max_iterations = 10, tsne_cols = c("tSNE1", "tSNE2"),
+emd_fcs <- function (files, max_iterations = 10,
                      use_existing = T, verbose = T) {
     stopifnot(!any(duplicated(files)))
     n <- length(files)
-    files_hash <- hash_all(files)
-    outfile <- sprintf("emd_fcs_out_%s_%s.csv", max_iterations, files_hash)
+    args_hash <- digest(algo = "sha512", list(files = hash_file_set(files),
+                                              max_iterations = max_iterations))
+    outfile <- sprintf("emd_fcs_args_%s.csv", args_hash)
     if (use_existing && file.exists(outfile)) {
-        if (verbose) {
-            cat(sprintf("using existing file '%s' in emd_fcs\n", outfile))
-        }
-        ## ensure rows/cols of output are in order specified by current `files`
-        ## argument. this is so we can reuse the emd matrix if the input files
-        ## are the same, but use a new sorted order.
-        cur <- read.csv(outfile, row.names = 1) %>% as.matrix
-        dims <- dim(cur)
-        stopifnot(dims[1] == dims[2] &&
-                  all(rownames(cur) == colnames(cur)))
-        files_prev_order <- colnames(cur)
-        if (!all(files_prev_order == files)) {
-            if (verbose) {
-                cat(sprintf(
-                    "reordering existing matrix in '%s' by input files:[%s]\n",
-                    outfile, paste0(files, collapse = ", ")))
-            }
-            stopifnot(all(sort(files_prev_order) == sort(files)))
-            permut <- ordered(files_prev_order, levels = files) %>% order
-            write_matrix(cur[permut,permut], outfile)
-        }
-        return(outfile)
+        return(reorder_emd_matrix(files, outfile, verbose))
     }
     if (verbose) {
         cat(sprintf("starting pairwise emd on %s files...\n", n))
     }
-    file_idx <- 1
-    mats <- lapply(files, function (file) {
+    mats <- lapply(1:n, function (i) {
+        file <- files[[i]]
         if (verbose) {
-            cat(sprintf("reading file %s (%s/%s)...\n", file, file_idx, n))
+            cat(sprintf("reading file %s (%s/%s)...\n", file, i, n))
         }
-        file_idx <<- file_idx + 1
-        read_file(file) %>% select(tsne_cols) %>% as.matrix
+        read_file(file) %>% select(c(tSNE1, tSNE2)) %>% as.matrix
     })
     output <- matrix(vector(mode = "double", length = n * n), nrow = n)
     for (i in 1:n) {
