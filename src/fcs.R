@@ -325,16 +325,39 @@ sort_by_component <- function (strs, split_by,
     }
 }
 
+write_matrix <- function (mat, outfile, ...) {
+    write.table(mat, outfile, sep = ",", ...)
+}
+
 ## TODO: parallelize this!
 emd_fcs <- function (files,
                      max_iterations = 10, tsne_cols = c("tSNE1", "tSNE2"),
                      use_existing = T, verbose = T) {
+    stopifnot(!any(duplicated(files)))
     n <- length(files)
     files_hash <- hash_all(files)
     outfile <- sprintf("emd_fcs_out_%s_%s.csv", max_iterations, files_hash)
     if (use_existing && file.exists(outfile)) {
         if (verbose) {
             cat(sprintf("using existing file '%s' in emd_fcs\n", outfile))
+        }
+        ## ensure rows/cols of output are in order specified by current `files`
+        ## argument. this is so we can reuse the emd matrix if the input files
+        ## are the same, but use a new sorted order.
+        cur <- read.csv(outfile, row.names = 1) %>% as.matrix
+        dims <- dim(cur)
+        stopifnot(dims[1] == dims[2] &&
+                  all(rownames(cur) == colnames(cur)))
+        files_prev_order <- colnames(cur)
+        if (!all(files_prev_order == files)) {
+            if (verbose) {
+                cat(sprintf(
+                    "reordering existing matrix in '%s' by input files:[%s]\n",
+                    outfile, paste0(files, collapse = ", ")))
+            }
+            stopifnot(all(sort(files_prev_order) == sort(files)))
+            permut <- ordered(files_prev_order, levels = files) %>% order
+            write_matrix(cur[permut,permut], outfile)
         }
         return(outfile)
     }
@@ -358,10 +381,16 @@ emd_fcs <- function (files,
         i_rows <- dim(i_mat)[1]
         if (i > 1) {
             for (j in 1:(i - 1)) {
+                if (verbose) {
+                    cat(sprintf("column %s/%s\n", j, n))
+                }
                 output[i,j] <- output[j,i]
             }
         }
         output[i,i] <- 0
+        if (verbose) {
+            cat(sprintf("column %s/%s\n", i, n))
+        }
         if (i < n) {
             for (j in (i + 1):n) {
                 if (verbose) {
@@ -369,7 +398,6 @@ emd_fcs <- function (files,
                 }
                 j_mat <- mats[[j]]
                 j_rows <- dim(j_mat)[1]
-                ## FIXME: max.iter is not a real parameter used with emd!
                 output[i,j] <- emdw(i_mat, rep(1, i_rows),
                                     j_mat, rep(1, j_rows),
                                     max.iter = max_iterations)
@@ -379,7 +407,7 @@ emd_fcs <- function (files,
     files_sorted <- files[sort_by_component(files, "_", )]
     colnames(output) <- files
     rownames(output) <- files
-    write.table(output, outfile, sep = ",")
+    write_matrix(output, outfile)
     outfile
 }
 

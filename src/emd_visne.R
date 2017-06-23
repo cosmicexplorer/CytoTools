@@ -85,7 +85,7 @@ data_files <- sort_by_component(
 ##   not changed. It checks file content changing with md5sum(). Set
 ##   use_existing = F to turn this off (e.g. if you change a viSNE parameter).
 with_tsne <- do_tsne(data_files, markers = NULL,
-                     n = 1000, perplexity = 10, theta = 0.5, max_iter = 200,
+                     n = 1000, perplexity = 30, theta = 0.5, max_iter = 1000,
                      transform = asinh_transform,
                      use_existing = T, verbose = verbose)
 
@@ -93,7 +93,10 @@ with_tsne <- do_tsne(data_files, markers = NULL,
 ##   `max_iterations` is the number of iterations to perform when computing EMD.
 ##   Increasing this value *typically* does not change the result at all.
 ##
-##   `use_existing` is the same as in do_tsne().
+##   `use_existing` is the same as in do_tsne(). If `use_existing` is TRUE and
+##   the input files are the same, but in a different order, emd_fcs() will not
+##   recompute the matrix, but it will rearrange the rows and columns according
+##   to the new order.
 pairwise_emd_table <- emd_fcs(with_tsne,
                               max_iterations = 10,
                               use_existing = T, verbose = verbose)
