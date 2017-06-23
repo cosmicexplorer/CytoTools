@@ -21,66 +21,37 @@ library(ggplot2)
 ### Read/write different representations of flow data.
 
 ## NOTE: we only grab a single dataset from each input file, even if more
-## exist. multiple datasets in an fcs file is deprecated and "implementors are
+## exist. Multiple datasets in an fcs file is deprecated and "implementors are
 ## being discouraged to do so." it may exist, but shouldn't be supported.
 
-read_fcs_raw <- function (fname) {
-    ## TODO: are these the standard transformations for flowCore?
+read_fcs_flowFrame <- function (fname) {
     read.FCS(fname, transformation = NULL, truncate_max_range = F)
 }
 
-read_fcs <- function (fname) {
-    flowFrame_obj <- read_fcs_raw(fname)
-    fname %>% read_fcs_raw %>% exprs %>% as.data.frame
+read_fcs_cyto_frame <- function (fname) {
+    fname %>% read_fcs_flowFrame %>% exprs %>% as.data.frame
 }
 
-read_text_file <- function (fname, ...) {
+read_text_cyto_frame <- function (fname, ...) {
     tryCatch(
-        read.table(fname, header = header, sep = sep, ...),
+        read.table(fname, header = T, ...),
         error = function (e) {
             read.table(fname, skip = 1, ...)
         }
     )
 }
 
-read_txt <- function (fname, ...) {
-    read_text_file(fname, header = T, sep = "\t", ...)
-}
-
-read_csv <- function (fname, ...) {
-    read_text_file(fname, header = T, sep = ",", ...)
-}
-
-## If you need to do something weird when reading files, set this to your read
-## function.
-read_file_fun <- NULL
-## Modify this list to recognize more filetypes. Filetypes are case-insensitive.
-read_file_funs_map <- list(fcs = read_fcs,
-                           csv = read_csv,
-                           txt = read_txt)
 read_file <- function (fname) {
     ## TODO: does any kind of data cleaning make sense here? see ../README.md
     ## TODO: consider having a cache for this function if files are reused a lot
-    ext <- file_ext(fname)
-    ext_lowercase <- tolower(ext)
-    reader_fun <-
-        if (!is.null(read_file_fun)) {
-            match.fun(read_file_fun)
-        } else if (ext_lowercase %in% names(read_file_funs_map)) {
-            match.fun(read_file_funs_map[[ext_lowercase]])
-        } else {
-            stop(sprintf("unrecognized extension '%s' for file '%s'",
-                         ext, fname))
-        }
-    reader_fun(fname)
-}
-
-write_txt <- function (frame, fname) {
-    write.table(frame, sep = '\t', row.names = F, file = fname)
-}
-
-write_csv <- function (frame, fname) {
-    write.table(frame, sep = ',', row.names = F, file = fname)
+    ext <- file_ext(fname) %>% tolower
+    switch(
+        ext,
+        fcs = read_fcs_cyto_frame(fname),
+        csv = read_text_cyto_frame(fname, sep = ","),
+        txt = read_text_cyto_frame(fname, sep = "\t"),
+        stop(sprintf("unrecognized extension '%s' for file '%s'",
+                     ext, fname)))
 }
 
 ## TODO: check validity of data in df? against params/description?
@@ -96,15 +67,57 @@ make_flowFrame <- function (exprs, parameters, description) {
     do.call("flowFrame", args, envir = environment())
 }
 
-write_flowFrame <- function (flow_obj, fname) {
-    write.FCS(flow_obj, fname)
+## used in sort_files_by_component()
+sort_component_helper <- function (splits, indices, orders) {
+    n <- length(indices)
+    if (n == 0) {
+        return(indices)
+    }
+    empty_p <- lapply(indices, function (i) length(splits[[i]]) == 0) %>% unlist
+    if (all(empty_p)) {
+        return(indices)
+    }
+    nonempty_inds <- indices[!empty_p]
+    next_orders <- orders[-1]
+    next_splits <- lapply(splits, function (cur) cur[-1])
+    cur_splits <- lapply(indices, function (i) splits[[i]][1]) %>% unlist
+    recognized <- if (length(orders) > 0) { orders[[1]] } else { character() }
+    lvls <- cur_splits[!(cur_splits %in% recognized)] %>% sort %>% unique %>% {
+        as.character(c(recognized, .))
+    }
+    nonempty_reduced <- Reduce(
+        x = lvls,
+        init = list(result = list(),
+                    remaining = nonempty_inds),
+        f = function (cur, level) {
+            if (length(cur$remaining) == 0) {
+                return(cur)
+            }
+            matching <- lapply(cur$remaining, function (i) {
+                splits[[i]][1] == level
+            }) %>% unlist
+            matched_sorted <- sort_component_helper(
+                next_splits, cur$remaining[matching], next_orders)
+            list(result = c(cur$result, matched_sorted),
+                 remaining = cur$remaining[!matching])
+        })
+    stopifnot(length(nonempty_reduced$remaining) == 0)
+    c(indices[empty_p], nonempty_reduced$result) %>% unlist
 }
 
-get_fcs_data_files <- function (dir = getwd(),
-                                 pattern = "\\.fcs$",
-                                 recursive = F) {
-    list.files(path = dir, pattern = pattern, all.files = T, full.names = T,
-               recursive = recursive, no.. = T)
+sort_files_by_component <- function (strs, split_by, orders = list(),
+                                     split_fixed = T, value = T) {
+    splits <- if (split_fixed) {
+                  strsplit(strs, split_by, fixed = T)
+              } else {
+                  strsplit(strs, split_by, perl = T)
+              }
+    indices <- sort_component_helper(splits, 1:length(splits), orders)
+    if (value) {
+        strs[indices]
+    } else {
+        indices
+    }
 }
 
 
@@ -151,16 +164,16 @@ fcs_data_cols <- function (
         })
 }
 
-
-
-### Manipulate fcs data.
-
 shared_markers <- function (frames) {
     ## TODO: find less common columns and check if they're mistakes
     ## TODO: if columns are close but not the same (e.g. levenshtein), show a
     ## warning
     frames %>% lapply(colnames) %>% Reduce(f = intersect)
 }
+
+
+
+### Manipulate fcs data.
 
 do_tsne <- function (infiles, n,
                      markers = NULL, transform_with = asinh_transform,
@@ -226,59 +239,6 @@ do_tsne <- function (infiles, n,
 
 
 ### Analyze hierarchies of populations in a dataset.
-
-sort_component_helper <- function (splits, indices, orders) {
-    n <- length(indices)
-    if (n == 0) {
-        return(indices)
-    }
-    empty_p <- lapply(indices, function (i) length(splits[[i]]) == 0) %>% unlist
-    if (all(empty_p)) {
-        return(indices)
-    }
-    nonempty_inds <- indices[!empty_p]
-    next_orders <- orders[-1]
-    next_splits <- lapply(splits, function (cur) cur[-1])
-    cur_splits <- lapply(indices, function (i) splits[[i]][1]) %>% unlist
-    recognized <- if (length(orders) > 0) { orders[[1]] } else { character() }
-    lvls <- cur_splits[!(cur_splits %in% recognized)] %>% sort %>% unique %>% {
-        as.character(c(recognized, .))
-    }
-    nonempty_reduced <- Reduce(
-        x = lvls,
-        init = list(result = list(),
-                    remaining = nonempty_inds),
-        f = function (cur, level) {
-            if (length(cur$remaining) == 0) {
-                return(cur)
-            }
-            matching <- lapply(cur$remaining, function (i) {
-                splits[[i]][1] == level
-            }) %>% unlist
-            matched_sorted <- sort_component_helper(
-                next_splits, cur$remaining[matching], next_orders)
-            list(result = c(cur$result, matched_sorted),
-                 remaining = cur$remaining[!matching])
-        })
-    stopifnot(length(nonempty_reduced$remaining) == 0)
-    c(indices[empty_p], nonempty_reduced$result) %>% unlist
-}
-
-sort_by_component <- function (strs, split_by,
-                               orders = list(), split_fixed = T,
-                               value = T) {
-    splits <- if (split_fixed) {
-                  strsplit(strs, split_by, fixed = T)
-              } else {
-                  strsplit(strs, split_by, perl = T)
-              }
-    indices <- sort_component_helper(splits, 1:length(splits), orders)
-    if (value) {
-        strs[indices]
-    } else {
-        indices
-    }
-}
 
 ## TODO: parallelize this!
 emd_fcs <- function (files, outfile,

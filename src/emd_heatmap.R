@@ -33,9 +33,9 @@ data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
                          all.files = TRUE, full.names = TRUE, recursive = FALSE,
                          no.. = TRUE)
 
-## sort_by_component(): splits filenames into pieces and sorts them.
-##   sort_by_component() uses the string in `split_by` to break filenames into
-##   components.
+## sort_files_by_component(): splits filenames into pieces and sorts them.
+##   sort_files_by_component() uses the string in `split_by` to break filenames
+##   into components.
 ##
 ##   Splitting "A:B:C" by ":" returns c("A", "B", "C")). We say that the string
 ##   "A:B:C" has components "A" at index 1, "B" at index 2, and "C" at 3.
@@ -50,7 +50,7 @@ data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
 ##   > data_files <- c("MB004_6m_panel2.fcs", "MB004_3wk_panel2.fcs",
 ##                     "MB004_12wk_panel2.fcs", "MB004_pre_panel2.fcs",
 ##                     "MB005_12wk_panel2.fcs")
-##   > sort_by_component(
+##   > sort_files_by_component(
 ##       data_files,
 ##       split_by = "_",
 ##       orders = list(c("MB005"), c("pre", "3wk", "12wk", "6m")))
@@ -65,7 +65,7 @@ data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
 ##
 ##   With `split_by` = "" and `orders` = list(), `data_files` is simply sorted
 ##   alphabetically by file name.
-data_files_sorted <- sort_by_component(
+data_files_sorted <- sort_files_by_component(
     data_files,
     split_by = "",
     orders = list())
