@@ -1,3 +1,7 @@
+### Routines for manipulating CyToF data and interacting with Cytobank.
+## Written by Danny McClanahan, Irish Lab June 2017.
+## <danieldmcclanahan@gmail.com>
+
 library(flowCore, warn.conflicts = F)
 library(CytobankAPI, quietly = T, warn.conflicts = F)
 library(flowWorkspace, quietly = T)

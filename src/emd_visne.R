@@ -1,5 +1,8 @@
 ### Run viSNE on a set of files, compute pairwise Earth Mover's Distance (EMD),
 ### and generate a heatmap.
+## Written by Danny McClanahan, Irish Lab June 2017.
+## <danieldmcclanahan@gmail.com>
+
 source("./fcs.R")
 
 ### Configure
