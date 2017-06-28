@@ -71,13 +71,16 @@ data_files_sorted <- sort_files_by_component(
     orders = list())
 
 ## emd_fcs(): Run pairwise EMD on input files and produce CSV.
+##   The resuts are stored in `emd_outfile`.
+##
 ##   `max_iterations` is the number of iterations to perform when computing EMD.
 ##   Increasing this value *typically* does not change the result at all.
 emd_fcs(data_files_sorted, emd_outfile, max_iterations = 10)
 
 ## emd_outfile has row names in column 1
-emd_matrix <- as.matrix(read.csv(emd_outfile, row.names = 1))
+emd_matrix <- as.matrix(read.csv(row.names = 1))
 
 pdf(heatmap_outfile)
-heatmap(emd_matrix, Rowv = NA, Colv = NA, col = color_palette)
+heatmap.2(emd_matrix, Rowv = F, Colv = F, dendrogram = "none",
+          col = color_palette, trace = "none")
 dev.off()

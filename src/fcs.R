@@ -9,6 +9,8 @@ library(flowUtils)
 library(CytoML, warn.conflicts = F)
 library(tools)
 library(digest)
+library(boot)
+library(gplots)
 library(Rtsne, warn.conflicts = F)
 library(emdist, warn.conflicts = F)
 library(spade, quietly = T, warn.conflicts = F, verbose = F)
@@ -16,6 +18,7 @@ library(gdata, warn.conflicts = F)
 library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
 library(ggplot2)
+
 
 
 ### Read/write different representations of flow data.
@@ -36,7 +39,7 @@ read_text_cyto_frame <- function (fname, ...) {
     tryCatch(
         read.table(fname, header = T, ...),
         error = function (e) {
-            read.table(fname, skip = 1, ...)
+            read.table(fname, header = T, skip = 1, ...)
         }
     )
 }
@@ -239,6 +242,45 @@ do_tsne <- function (infiles, n,
 
 
 ### Analyze hierarchies of populations in a dataset.
+
+emd_frames <- function (frames, max_rows = 50, max_iterations = 10) {
+    mats <- lapply(frames, function (df) {
+        df %>% select(c(tSNE1, tSNE2)) %>% slice(1:max_rows) %>%
+            as.matrix
+    })
+    t_emdw <- system.time(ret_emdw <- emdw(mats[[1]], rep(1, max_rows),
+                                           mats[[2]], rep(1, max_rows),
+                                           max.iter = max_iterations))
+    ## t_simplex <- system.time(ret_simplex <- {
+    ##     ftm <- t(mats[[1]])
+    ##     gtm <- t(mats[[2]])
+    ##     n <- max_rows^2
+    ##     d_r <- vector(mode = "double", length = n)
+    ##     for (i in 1:max_rows) {
+    ##         col <- ftm[,i]
+    ##         d_r[(1:max_rows) + (max_rows*(i - 1))] <-
+    ##             ((gtm - col)^2) %>% colSums %>% sqrt
+    ##     }
+    ##     lts <- matrix(rep(0.0, max_rows * n), ncol = n)
+    ##     gts <- matrix(rep(0.0, max_rows * n), ncol = n)
+    ##     for (i in 1:max_rows) {
+    ##         lts[i,((1:max_rows) + (max_rows*(i - 1)))] <-
+    ##             rep(1.0, max_rows)
+    ##         gts[i,(((1:max_rows - 1)*max_rows) + i)] <-
+    ##             rep(1.0, max_rows)
+    ##     }
+    ##     simplex(d_r,
+    ##             A1 = lts, b1 = rep(1.0, max_rows),
+    ##             A2 = gts, b2 = rep(1.0, max_rows),
+    ##             n.iter = max_iterations)
+    ## })
+    list(t_emdw = t_emdw,
+         ret_emdw = ret_emdw
+        ## ,
+        ##  t_simplex = t_simplex,
+        ##  ret_simplex = ret_simplex
+         )
+}
 
 ## TODO: parallelize this!
 emd_fcs <- function (files, outfile,
