@@ -10,11 +10,15 @@ source("./fcs.R")
 color_palette <- colorRampPalette(
     c("#24658C", "#5CBAA7", "#9ED2A4", "#E2E998", "#FBF7BF", "#FDDC86",
       "#F8A05A", "#EF6342", "#D43E4F")
-)(n = 299)
+)(n = 50)
 ## `emd_outfile`: filename for output csv with EMD pairwise comparisons
 emd_outfile <- "emd_out.csv"
-## `heatmap_outfile`: output file containing EMD heatmap as a pdf
-heatmap_outfile <- "heatmap_fcs_out.pdf"
+## `emd_heatmap_outfile`: output file containing EMD heatmap as a pdf
+emd_heatmap_outfile <- "heatmap_emd.pdf"
+## `mem_outfile`: filename for output csv with MEM RMSD pairwise comparisons
+mem_outfile <- "mem_out.csv"
+## `mem_heatmap_outfile`: output file containing MEM heatmap as a pdf
+mem_heatmap_outfile <- "heatmap_mem.pdf"
 ## Set working directory, if you need to.
 setwd(".")
 
@@ -76,11 +80,23 @@ data_files_sorted <- sort_files_by_component(
 ##   `max_iterations` is the number of iterations to perform when computing EMD.
 ##   Increasing this value *typically* does not change the result at all.
 emd_fcs(data_files_sorted, emd_outfile, max_iterations = 10)
-
 ## emd_outfile has row names in column 1
-emd_matrix <- as.matrix(read.csv(row.names = 1))
+emd_matrix <- as.matrix(read.csv(emd_outfile, row.names = 1))
 
-pdf(heatmap_outfile)
+pdf(emd_heatmap_outfile)
 heatmap.2(emd_matrix, Rowv = F, Colv = F, dendrogram = "none",
-          col = color_palette, trace = "none")
+          col = color_palette, trace = "none", density.info = "none")
+dev.off()
+
+## mem_fcs(): Run pairwise MEM RMSD on input files and produce CSV.
+##   The resuts are stored in `mem_outfile`.
+mem_fcs(data_files_sorted, mem_outfile)
+## mem_outfile has row names in column 1
+mem_matrix <- as.matrix(read.csv(mem_outfile, row.names = 1))
+
+pdf(mem_heatmap_outfile)
+heatmap.2(
+    mem_matrix, col = color_palette,
+    Rowv = F, Colv = F, dendrogram = "none", trace = "none",
+    density.info = "none")
 dev.off()

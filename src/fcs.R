@@ -336,6 +336,84 @@ emd_fcs <- function (files, outfile,
     outfile
 }
 
+calc_mag_iqr <- function (frame, markers) {
+    lapply(markers, function (mark) {
+        frame[,mark] %>% { c(median(.), IQR(., type = 2)) }
+    }) %>% Reduce(f = rbind) %>%
+        set_colnames(c("MAG", "IQR")) %>%
+        set_rownames(markers) %>% as.data.frame
+}
+
+calc_mem <- function (pop, ref, markers) {
+    stopifnot(all(rownames(pop) == markers) &&
+              all(rownames(ref) == markers))
+    flip_mems <- (pop$MAG - ref$MAG) < 0
+    mems <- (abs(pop$MAG - ref$MAG) + (ref$IQR / pop$IQR) - 1) *
+        ((-2 * flip_mems) + 1)
+    setNames(mems, markers)
+}
+
+mem_fcs <- function (files, outfile,
+                     markers = NULL,
+                     transform_with = asinh_transform,
+                     verbose = T) {
+    n <- length(files)
+    if (verbose) {
+        cat(sprintf("performing pairwise MEM on %s files...\n", n))
+    }
+    frames <- files %>% lapply(function (file) {
+        if (verbose) {
+            cat(sprintf("reading %s...\n", file))
+        }
+        read_file(file)
+    })
+    on_markers <-
+        if (!is.null(markers)) {
+            markers
+        } else {
+            if (verbose) {
+                cat("guessing markers to join on...\n")
+            }
+            frames %>% lapply(fcs_data_cols) %>% shared_markers
+        }
+    if (verbose) {
+        cat(sprintf("joining on markers:\n[%s]\n",
+                    paste0(on_markers, collapse = ", ")))
+        cat("performing MEM...\n")
+    }
+    marked_pops <- lapply(frames, function (df) {
+        df[,on_markers] %>% mutate_all(transform_with)
+    })
+    stat_dfs <- lapply(marked_pops, function (df) calc_mag_iqr(df, on_markers))
+    global_ref <- Reduce(x = marked_pops, f = rbind) %>%
+        calc_mag_iqr(on_markers)
+    mem_vectors <- lapply(stat_dfs, function (st_df) {
+        calc_mem(st_df, global_ref, on_markers)
+    })
+    output <- matrix(vector("double", length = n * n), nrow = n)
+    if (verbose) {
+        cat(sprintf("starting pairwise MEM RMSD on %s files...\n", n))
+    }
+    for (i in 1:n) {
+        if (verbose) {
+            cat(sprintf("row %s/%s\n", i, n))
+        }
+        i_vt <- mem_vectors[[i]]
+        for (j in 1:n) {
+            if (verbose) {
+                cat(sprintf("col %s/%s\n", j, n))
+            }
+            j_vt <- mem_vectors[[j]]
+            output[i,j] <- (i_vt - j_vt) ^ 2 %>% sum %>% sqrt
+        }
+    }
+    colnames(output) <- files
+    rownames(output) <- files
+    write.table(output, outfile, sep = ",")
+    stopifnot(file.exists(outfile))
+    outfile
+}
+
 ## look at xtabs/ftable/table() and summary/summarize/aggregate/group_by()
 
 
