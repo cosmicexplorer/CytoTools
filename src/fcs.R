@@ -10,6 +10,7 @@ library(CytoML, warn.conflicts = F)
 library(tools)
 library(digest)
 library(boot)
+library(XML)
 library(gplots)
 library(Rtsne, warn.conflicts = F)
 library(emdist, warn.conflicts = F)
@@ -492,6 +493,34 @@ download_gates <- function (session, exp_id) {
 
 apply_gates <- function (gates_xml, fcs_files) {
     cytobank2GatingSet(gates_xml, fcs_files)
+}
+
+## xidel -e '//gating:*[matches(name(), ".*BooleanGate$")]/(for $n in .//name/text() return concat($n, ":", @gating:id))' CytExp_22899_Gates_v1.xml
+parse_gates <- function (xml) {
+    doc <- xmlParse(xml)
+    doc_ns <- xmlNamespaceDefinitions(doc, simplify = T)
+    gates <- xpathSApply(doc, "/gating:Gating-ML/gating:BooleanGate")
+    names <- lapply(gates, function (gate) {
+        ret <- xpathSApply(
+            gate, "data-type:custom_info/cytobank/name/text()", xmlValue,
+            namespaces = doc_ns)
+        stopifnot(length(ret) == 1)
+        ret[[1]]
+    })
+    lapply(gates, function (gate) {
+        refs <- xpathSApply(
+            gate, "gating:and/gating:gateReference/@gating:ref",
+            namespaces = doc_ns) %>%
+            setNames(NULL)
+        if (!any(duplicated(refs))) {
+            refs
+        } else {
+            is_root_pop <- isTRUE((length(refs) == 2) &&
+                                  (refs[[1]] == refs[[2]]))
+            stopifnot(is_root_pop)
+            refs[1]
+        }
+    }) %>% setNames(names)
 }
 
 

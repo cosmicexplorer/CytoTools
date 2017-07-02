@@ -66,6 +66,7 @@ allie-paper
 # part 4???
 - rmsd comparison of MEM is challenging
     - need to have same markers
+        - **RMSD ON ALL SHARED MARKERS, OR SHARED MARKERS IN EACH PAIRWISE COMPARISON??**
     - making script to produce copies of all input files but only with channels that are shared
         - and maybe fix some small inconsistencies in column naming
 - more info later
