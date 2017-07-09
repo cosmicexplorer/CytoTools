@@ -3,8 +3,6 @@
 ## Written by Danny McClanahan, Irish Lab June 2017.
 ## <danieldmcclanahan@gmail.com>
 
-source("./fcs.R")
-
 ### Configure
 ## `color_palette`: Color palette for heatmap.
 color_palette <- colorRampPalette(
@@ -71,8 +69,8 @@ data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
 ##   alphabetically by file name.
 data_files_sorted <- sort_files_by_component(
     data_files,
-    split_by = "",
-    orders = list())
+    split_by = "_",
+    orders = list(c(), c("pre", "3wk", "12wk", "6m")))
 
 ## emd_fcs(): Run pairwise EMD on input files and produce CSV.
 ##   The resuts are stored in `emd_outfile`.

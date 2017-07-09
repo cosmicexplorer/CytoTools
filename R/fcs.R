@@ -4,14 +4,12 @@
 
 library(flowCore, warn.conflicts = F)
 library(CytobankAPI, quietly = T, warn.conflicts = F)
-library(flowWorkspace, quietly = T)
-library(flowUtils)
-library(CytoML, warn.conflicts = F)
 library(tools)
 library(digest)
 library(boot)
 library(XML)
 library(gplots)
+library(hashmap)
 library(Rtsne, warn.conflicts = F)
 library(emdist, warn.conflicts = F)
 library(spade, quietly = T, warn.conflicts = F, verbose = F)
@@ -293,7 +291,8 @@ emd_fcs <- function (files, outfile,
         cat(sprintf("reading in %s files...\n", n))
     }
     mats <- lapply(files, function (file) {
-        read_file(file) %>% select(c(tSNE1, tSNE2)) %>% as.matrix
+        read_file(file) %>% select(c(tSNE1, tSNE2)) %>%
+            slice(1:1000) %>% as.matrix
     })
     output <- matrix(vector(mode = "double", length = n * n), nrow = n)
     if (verbose) {
@@ -495,19 +494,23 @@ apply_gates <- function (gates_xml, fcs_files) {
     cytobank2GatingSet(gates_xml, fcs_files)
 }
 
-## xidel -e '//gating:*[matches(name(), ".*BooleanGate$")]/(for $n in .//name/text() return concat($n, ":", @gating:id))' CytExp_22899_Gates_v1.xml
+## gate_ids <- with_gates %>% Reduce(f = union)
+## all_gates <- xpathSApply(doc, "//*[@gating:id]") %>%
+##     Filter(f = m_s(xmlGetAttr(., "gating:id") %in% gate_ids))
+## all_gates %>% m_app(xmlName(.)) %>% unique
+
 parse_gates <- function (xml) {
     doc <- xmlParse(xml)
     doc_ns <- xmlNamespaceDefinitions(doc, simplify = T)
-    gates <- xpathSApply(doc, "/gating:Gating-ML/gating:BooleanGate")
-    names <- lapply(gates, function (gate) {
+    pops <- xpathSApply(doc, "/gating:Gating-ML/gating:BooleanGate")
+    names <- lapply(pops, function (gate) {
         ret <- xpathSApply(
             gate, "data-type:custom_info/cytobank/name/text()", xmlValue,
             namespaces = doc_ns)
         stopifnot(length(ret) == 1)
         ret[[1]]
     })
-    lapply(gates, function (gate) {
+    with_gates <- lapply(pops, function (gate) {
         refs <- xpathSApply(
             gate, "gating:and/gating:gateReference/@gating:ref",
             namespaces = doc_ns) %>%
@@ -515,12 +518,19 @@ parse_gates <- function (xml) {
         if (!any(duplicated(refs))) {
             refs
         } else {
+            ## gating:and tags need at least two refs, and cytobank forces all
+            ## populations to be in a gating:and, including root populations
+            ## defined by only one gate. so cytobank puts two instances of the
+            ## single gate in the gating:and (so silly), and we just take one
             is_root_pop <- isTRUE((length(refs) == 2) &&
                                   (refs[[1]] == refs[[2]]))
             stopifnot(is_root_pop)
             refs[1]
         }
     }) %>% setNames(names)
+    lapply(with_gates, function (pop) {
+
+    })
 }
 
 
