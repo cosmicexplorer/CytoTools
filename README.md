@@ -1,4 +1,4 @@
-cyto-tools
+CytoTools
 ===========
 
 # LICENSE
