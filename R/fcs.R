@@ -503,16 +503,19 @@ get_ided_gates <- function (with_gates, doc) {
         unique
 }
 
-xpath <- function (doc, pat = ".", node = doc, fun = NULL) {
-    XML::xpathSApply(doc = node, path = pat, fun = fun,
+.xpath <- function (doc, xpath_str = ".", node = doc, fun = NULL) {
+    XML::xpathSApply(doc = node, path = xpath_str, fun = fun,
                      namespaces = xmlNamespaceDefinitions(doc, simplify = T))
 }
 
-xpath_at <- function (doc, node, pat, fun = NULL) {
-    CytoTools::xpath(doc = doc, pat = pat, node = node, fun = fun)
+.parse_rectangle_gate <- function(xml) {
+    .xpath(xml, "/gating:Gating-ML/gating:RectangleGate") %>%
+        lapply(function (rect_gate_xml) {
+            new("RectangleGate", rect_gate_xml, xml)
+        })
 }
 
-polygon_gate <- function (gate_node) {
+.parse_polygon_gate <- function (gate_node) {
     gate_node
 }
 
@@ -520,65 +523,105 @@ polygon_gate <- function (gate_node) {
     Tr_Arcsinh_5 = asinh_transform
 )
 
-.rectangle_gate <- function (gatingML, files) {
+.anon <- function (block, env = parent.frame()) {
+    sb <- substitute(block)
+    eval(bquote(function (.) { eval(.(sb), .(env)) }))
+}
+
+.explode <- function (result, pred = is.null) {
+    stopifnot(isTRUE(!((match.fun(pred))(result))))
+    result
+}
+
+setGeneric('add_to', function (gate, fcs) stop(paste(gate, fcs)))
+
+setClass('Gate',
+         slots = c(gate_name = 'character', gate_id = 'character'))
+setMethod('initialize', 'Gate', function(.Object, gate_xml, doc) {
+    .Object <- callNextMethod(.Object)
+    gate_name <- .xpath(doc, 'data-type:custom_info/cytobank/name/text()',
+                        gate_xml, xmlValue)
+    stopifnot(isTRUE(is.character(gate_name) && length(gate_name) == 1))
+    gate_id <- xmlGetAttr(gate_xml, 'gating:id')
+    .Object@gate_name <- gate_name[[1]]
+    .Object@gate_id <- gate_id
+    .Object
+})
+
+setClass('RectangleGate',
+         slots = c(constraints = 'list'),
+         contains = 'Gate')
+setMethod(
+    'initialize', 'RectangleGate',
+    function (.Object, rect_gate_xml, doc) {
+        .Object <- callNextMethod(.Object, rect_gate_xml, doc)
+        constraints <- .xpath(doc, 'gating:dimension', rect_gate_xml) %>%
+            lapply(function (dim_xml) {
+                list(transform_name = xmlGetAttr(dim_xml,
+                                                 'gating:transformation-ref'),
+                    marker = .xpath(
+                        doc, 'data-type:fcs-dimension/@data-type:name',
+                        dim_xml),
+                    min = xmlGetAttr(dim_xml, 'gating:min'),
+                    max = xmlGetAttr(dim_xml, 'gating:max'))
+            })
+        .Object@constraints <- constraints
+        .Object
+    })
+setMethod('add_to', c(gate = 'RectangleGate', fcs = 'data.frame'),
+          function (gate, fcs) {
+              fcs[,gate@gate_name] <- TRUE
+              Reduce(x = gate@constraints, init = fcs, f = function (acc, cur) {
+                  f <- match.fun(
+                      .data_transformation_fun_dict[[cur$transform_name]])
+                  acc[,gate@gate_name] <- acc[,gate@gate_name] &
+                      acc[,cur$marker] %>% f %>% {
+                          (. >= cur$min) & (. <= cur$max)
+                      }
+                  acc
+              })
+          })
+
+## setClassUnion(
+##     "Gate", c("RectangleGate", "PolygonGate", "BooleanGate", "QuadrantGate"))
+
+.parse_quadrant_gate <- function (gatingML, files) {
     doc <- xmlParse(gatingML)
-    nodes <- CytoTools::xpath(doc, "/gating:Gating-ML/gating:RectangleGate")
-    nodes %>% lapply(function (node) {
-        gate_id <- CytoTools::xpath_at(doc, node, "@gating:id")
-        name <- CytoTools::xpath_at(
-            doc, node, "data-type:custom_info/cytobank/name/text()", xmlValue)
-        gdims <- CytoTools::xpath_at(doc, node, "gating:dimension")
-        channels <- gdims %>% lapply(function (gd) {
-            trans_name <- CytoTools::xpath_at(
-                doc, gd, "@gating:transformation-ref")
-            list(
-                gate_id = gate_id,
-                name = CytoTools::xpath_at(
-                    doc, gd, "data-type:fcs-dimension/@data-type:name"),
-                min = as.double(CytoTools::xpath_at(doc, gd, "@gating:min")),
-                max = as.double(CytoTools::xpath_at(doc, gd, "@gating:max")),
-                trans = match.fun(.data_transformation_fun_dict[[trans_name]])
-            )
-        })
-        membership <- files %>% lapply(function (file) {
-            read_file(file) %>% Reduce(
-                init = ., x = channels, f = function (df, cur_ch) {
-                    df[,cur_ch$gate_id] <- df[,cur_ch$name] %>%
-                        cur_ch$trans(.) %>% {
-                            (. >= cur_ch$min) & (. <= cur_ch$max)
-                        }
-                    df
-                })})
-        ret <- list(name = name,
-                    channels = channels,
-                    type = "RectangleGate",
-                    files = files,
-                    membership = membership)
-        ret
+    quadrant_gate_nodes <- .xpath(doc, "/gating:Gating-ML/gating:QuadrantGate")
+    lapply(quadrant_gate_nodes, function (node) {
+        ## name <-
     })
 }
 
-quadrant_gate <- function (gate_node) {
+.parse_boolean_gate <- function (gate_node) {
     gate_node
 }
 
-boolean_gate <- function (gate_node) {
-    gate_node
-}
-
-gate_analysis_dispatch <- list(
-    PolygonGate = polygon_gate,
-    RectangleGate = .rectangle_gate,
-    QuadrantGate = quadrant_gate,
-    BooleanGate = boolean_gate
+.gate_parse_dispatch <- list(
+    ## TODO: check if we're missing any gate types in the parse function!
+    PolygonGate = .parse_polygon_gate,
+    RectangleGate = .parse_rectangle_gate,
+    QuadrantGate = .parse_quadrant_gate,
+    BooleanGate = .parse_boolean_gate
 )
 
-apply_gate <- function (gate_node) {
-    gate_type <- xmlName(gate_node)
-    stopifnot(gate_type %in% names(gate_analysis_dispatch))
-    process <- gate_analysis_dispatch[[gate_type]] %>% match.fun
-    process(gate_node)
+parse_gatingml <- function (gatingMLFile) {
+    doc <- xmlParse(gatingMLFile)
+    lapply(.gate_parse_dispatch, function (p) p(doc)) %>% Reduce(f = c)
+}
 
+## .gate_apply_dispatch <- list(
+##     PolygonGate = .apply_polygon_gate,
+##     RectangleGate = .apply_rectangle_gate,
+##     QuadrantGate = .apply_quadrant_gate,
+##     BooleanGate = .apply_boolean_gate
+## )
+
+apply_parsed_gates <- function (parsed_gates, cyto_files) {
+    lapply(cyto_files, read_file) %>%
+        Reduce(x = parsed_gates, init = ., f = function (frame_list, gate) {
+            lapply(frame_list, function (cyto) apply_gate(gate, cyto))
+        })
 }
 
 parse_gates_pops <- function (xml) {
@@ -746,7 +789,3 @@ cluster_spade <- function (files) {
 ##     Rowv = F, Colv = F, dendrogram = "none", trace = "none",
 ##     density.info = "none")
 ## dev.off()
-
-## Local Variables:
-## ess-r-package-info: ("CytoTools" . "/home/cosmicexplorer/Vandy/irish-lab/CytoTools/")
-## End:
