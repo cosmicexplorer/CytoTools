@@ -496,20 +496,50 @@ apply_gates <- function (gates_xml, fcs_files) {
 
 
 ### Parsing cytobank output.
-get_ided_gates <- function (with_gates, doc) {
-    gate_ids <- fold(with_gates, union)
-    xpathSApply(doc, "//*[@gating:id]") %>%
-        filter(lam(xmlGetAttr(., "gating:id") %in% gate_ids)) %^% xmlName(.) %>%
-        unique
-}
+setGeneric("traverse", function (iterable, do, by = lapply) {
+    match.fun(by)(iterable, match.fun(do))
+})
+
+is.single_str <- function (x) { isTRUE(is.character(x) &&
+                                       length(x) == 1) }
+
+.mock_xml <- xmlNode('.root')
+
+setClass('XPath', slots = c(expr = 'character'))
+setMethod('initialize', 'XPath', function (.Object, xpath_str) {
+    .Object <- callNextMethod(.Object)
+    ## should throw on invalid xpath expression
+    stopifnot()
+    xpathApply(.mock_xml, xpath_str)
+    .Object@expr <- xpath_str
+    .Object
+})
+setMethod(
+    "traverse",
+    c(iterable = 'XMLNode', do = 'function', by = 'XPath'),
+    function (iterable, do, by) {
+        XML::xpathSApply(doc = iterable, path = by@expr)
+    })
 
 .xpath <- function (doc, xpath_str = ".", node = doc, fun = NULL) {
     XML::xpathSApply(doc = node, path = xpath_str, fun = fun,
                      namespaces = xmlNamespaceDefinitions(doc, simplify = T))
 }
 
+.compose_xpath <- function (loc, pred, xfun) {
+    if (hasArg(pred)) {
+        if (hasArg(xfun)) {
+            sprintf("%s[%s]/%s", loc, pred, xfun)
+        } else {
+            sprintf("%s[%s]", loc, pred)
+        }
+    } else {
+        loc
+    }
+}
+
 .parse_rectangle_gate <- function(xml) {
-    .xpath(xml, "/gating:Gating-ML/gating:RectangleGate") %>%
+    .xpath(xml, "/gating:Gating-ML/gating:RectangleGate[not(data-type:custom_info/cytobank/fcs_file_filename/text())]") %>%
         lapply(function (rect_gate_xml) {
             new("RectangleGate", rect_gate_xml, xml)
         })
@@ -533,6 +563,10 @@ get_ided_gates <- function (with_gates, doc) {
     result
 }
 
+.get_single <- function (list) {
+    .explode(list, function (l) length(l) == 1) %>% .[[1]]
+}
+
 setGeneric('add_to', function (gate, fcs) stop(paste(gate, fcs)))
 
 setClass('Gate',
@@ -540,10 +574,9 @@ setClass('Gate',
 setMethod('initialize', 'Gate', function(.Object, gate_xml, doc) {
     .Object <- callNextMethod(.Object)
     gate_name <- .xpath(doc, 'data-type:custom_info/cytobank/name/text()',
-                        gate_xml, xmlValue)
-    stopifnot(isTRUE(is.character(gate_name) && length(gate_name) == 1))
+                        gate_xml, xmlValue) %>% .get_single
     gate_id <- xmlGetAttr(gate_xml, 'gating:id')
-    .Object@gate_name <- gate_name[[1]]
+    .Object@gate_name <- gate_name
     .Object@gate_id <- gate_id
     .Object
 })
