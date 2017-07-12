@@ -496,50 +496,21 @@ apply_gates <- function (gates_xml, fcs_files) {
 
 
 ### Parsing cytobank output.
-setGeneric("traverse", function (iterable, do, by = lapply) {
-    match.fun(by)(iterable, match.fun(do))
-})
-
-is.single_str <- function (x) { isTRUE(is.character(x) &&
-                                       length(x) == 1) }
-
-.mock_xml <- xmlNode('.root')
-
-setClass('XPath', slots = c(expr = 'character'))
-setMethod('initialize', 'XPath', function (.Object, xpath_str) {
-    .Object <- callNextMethod(.Object)
-    ## should throw on invalid xpath expression
-    stopifnot()
-    xpathApply(.mock_xml, xpath_str)
-    .Object@expr <- xpath_str
-    .Object
-})
-setMethod(
-    "traverse",
-    c(iterable = 'XMLNode', do = 'function', by = 'XPath'),
-    function (iterable, do, by) {
-        XML::xpathSApply(doc = iterable, path = by@expr)
-    })
-
 .xpath <- function (doc, xpath_str = ".", node = doc, fun = NULL) {
     XML::xpathSApply(doc = node, path = xpath_str, fun = fun,
                      namespaces = xmlNamespaceDefinitions(doc, simplify = T))
 }
 
-.compose_xpath <- function (loc, pred, xfun) {
-    if (hasArg(pred)) {
-        if (hasArg(xfun)) {
-            sprintf("%s[%s]/%s", loc, pred, xfun)
-        } else {
-            sprintf("%s[%s]", loc, pred)
-        }
-    } else {
-        loc
-    }
-}
-
+## doc <- xmlParse("./allie-paper/CytExp_22899_Gates_v1.xml")
+## fcs <- list.files(path = "./allie-paper/", pattern = "fcs$", full.names = T)
+## gates <- .parse_rectangle_gate(doc)
+## processed_fcs <- lapply(fcs, function (file) {
+##     Reduce(init = read_file(file), x = gates, f = function (acc, cur) {
+##         add_to(cur, acc)
+##     })
+## })
 .parse_rectangle_gate <- function(xml) {
-    .xpath(xml, "/gating:Gating-ML/gating:RectangleGate[not(data-type:custom_info/cytobank/fcs_file_filename/text())]") %>%
+    .xpath(xml, "/gating:Gating-ML/gating:RectangleGate") %>%
         lapply(function (rect_gate_xml) {
             new("RectangleGate", rect_gate_xml, xml)
         })
@@ -563,8 +534,8 @@ setMethod(
     result
 }
 
-.get_single <- function (list) {
-    .explode(list, function (l) length(l) == 1) %>% .[[1]]
+.get_single <- function (lst) {
+    .explode(lst, function (l) length(l) != 1) %>% .[[1]]
 }
 
 setGeneric('add_to', function (gate, fcs) stop(paste(gate, fcs)))
@@ -605,10 +576,10 @@ setMethod('add_to', c(gate = 'RectangleGate', fcs = 'data.frame'),
           function (gate, fcs) {
               fcs[,gate@gate_name] <- TRUE
               Reduce(x = gate@constraints, init = fcs, f = function (acc, cur) {
-                  f <- match.fun(
+                  tr_f <- match.fun(
                       .data_transformation_fun_dict[[cur$transform_name]])
                   acc[,gate@gate_name] <- acc[,gate@gate_name] &
-                      acc[,cur$marker] %>% f %>% {
+                      acc[,cur$marker] %>% tr_f %>% {
                           (. >= cur$min) & (. <= cur$max)
                       }
                   acc
