@@ -407,13 +407,13 @@ setMethod(
     eval(bquote(function (.) { eval(.(sb), .(env)) }))
 }
 
-.explode <- function (result, pred = is.null) {
+.ensure <- function (result, pred = is.null) {
     stopifnot(isTRUE(!((match.fun(pred))(result))))
     result
 }
 
 .get_single <- function (lst) {
-    .explode(lst, function (l) length(l) != 1) %>% .[[1]]
+    .ensure(lst, function (l) length(l) != 1) %>% .[[1]]
 }
 
 .parse_quadrant_gates <- function (xml) {
