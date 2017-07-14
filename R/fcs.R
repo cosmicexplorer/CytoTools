@@ -14,6 +14,7 @@ library(XML)
 library(gplots)
 library(emdist, warn.conflicts = F)
 library(spade, quietly = T, warn.conflicts = F, verbose = F)
+library(magrittr, warn.conflicts = F)
 library(dplyr, warn.conflicts = F)
 
 
