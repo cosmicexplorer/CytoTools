@@ -358,19 +358,24 @@ setMethod(
         .Object@constraints <- constraints
         .Object
     })
-setMethod("add_gate", c(gate = "RectangleGate", fcs = "data.frame"),
-          function (gate, fcs) {
-              fcs[,gate@gate_name] <- TRUE
-              Reduce(x = gate@constraints, init = fcs, f = function (acc, cur) {
-                  tr_f <- match.fun(
-                      .data_transformation_fun_dict[[cur$transform_name]])
-                  acc[,gate@gate_name] <- acc[,gate@gate_name] &
-                      acc[,cur$gate_name] <- acc[,cur$gate_name] | acc[,cur$marker] %>% tr_f %>% {
-                          (. >= cur$min) & (. <= cur$max)
-                      }
-                  acc
-              })
-          })
+setMethod(
+    "add_gate", c(gate = "RectangleGate", fcs = "data.frame"),
+    function (gate, fcs) {
+        fcs[,gate@gate_name] <- TRUE
+        Reduce(
+            init = fcs,
+            x = gate@constraints,
+            f = function (acc, constr) {
+                tr_f <- match.fun(
+                    .data_transformation_fun_dict[[constr$transform_name]])
+                satisfies_constraint <- acc[,constr$marker] %>% tr_f %>% {
+                    (. >= constr$min) & (. <= constr$max)
+                }
+                acc[,gate@gate_name] <-
+                    acc[,gate@gate_name] & satisfies_constraint
+                acc
+            })
+    })
 
 ## setClassUnion(
 ##     "Gate", c("RectangleGate", "PolygonGate", "BooleanGate", "QuadrantGate"))
@@ -421,7 +426,8 @@ setMethod("add_gate", c(gate = "RectangleGate", fcs = "data.frame"),
 }
 
 .gate_parse_dispatch <- list(
-    ## TODO: check if we're missing any gate types in the parse function!
+    ## TODO: check if there are node names matching /^gating:.*Gate$/ that
+    ## aren't in this list
     PolygonGate = .parse_polygon_gates,
     RectangleGate = .parse_rectangle_gates,
     QuadrantGate = .parse_quadrant_gates,
