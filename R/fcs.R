@@ -365,7 +365,7 @@ setMethod("add_gate", c(gate = "RectangleGate", fcs = "data.frame"),
                   tr_f <- match.fun(
                       .data_transformation_fun_dict[[cur$transform_name]])
                   acc[,gate@gate_name] <- acc[,gate@gate_name] &
-                      acc[,cur$marker] %>% tr_f %>% {
+                      acc[,cur$gate_name] <- acc[,cur$gate_name] | acc[,cur$marker] %>% tr_f %>% {
                           (. >= cur$min) & (. <= cur$max)
                       }
                   acc
@@ -377,23 +377,23 @@ setMethod("add_gate", c(gate = "RectangleGate", fcs = "data.frame"),
 
 ## doc <- xmlParse("./allie-paper/CytExp_22899_Gates_v1.xml")
 ## fcs <- list.files(path = "./allie-paper/", pattern = "fcs$", full.names = T)
-## gates <- .parse_rectangle_gate(doc)
+## gates <- .parse_rectangle_gates(doc)
 ## processed_fcs <- lapply(fcs, function (file) {
 ##     Reduce(init = read_file(file), x = gates, f = function (acc, cur) {
 ##         add_gate(cur, acc)
 ##     })
 ## })
 
-.parse_rectangle_gate <- function (xml) {
+.parse_rectangle_gates <- function (xml) {
     ## "data-type:custom_info/cytobank/fcs_file_filename/text()"
     .xpath(xml, "/gating:Gating-ML/gating:RectangleGate") %>%
-        lapply(function (rect_gate_xml) {
-            new("RectangleGate", rect_gate_xml, xml)
+        lapply(function (rect_gate_node) {
+            new("RectangleGate", rect_gate_node, xml)
         })
 }
 
-.parse_polygon_gate <- function (gate_node) {
-    gate_node
+.parse_polygon_gates <- function (xml) {
+    xml
 }
 
 .anon <- function (block, env = parent.frame()) {
@@ -410,22 +410,20 @@ setMethod("add_gate", c(gate = "RectangleGate", fcs = "data.frame"),
     .explode(lst, function (l) length(l) != 1) %>% .[[1]]
 }
 
-.parse_quadrant_gate <- function (gatingML, files) {
-    doc <- xmlParse(gatingML)
-    quadrant_gate_nodes <- .xpath(doc, "/gating:Gating-ML/gating:QuadrantGate")
-    lapply(quadrant_gate_nodes, function (node) {
-        ## name <-
+.parse_quadrant_gates <- function (xml) {
+    quadrant_gate_nodes <- .xpath(xml, "/gating:Gating-ML/gating:QuadrantGate")
+    lapply(quadrant_gate_nodes, function (quadrant_gate_node) {
     })
 }
 
-.parse_boolean_gate <- function (gate_node) {
-    gate_node
+.parse_boolean_gates <- function (xml) {
+    xml
 }
 
 .gate_parse_dispatch <- list(
     ## TODO: check if we're missing any gate types in the parse function!
-    PolygonGate = .parse_polygon_gate,
-    RectangleGate = .parse_rectangle_gate,
-    QuadrantGate = .parse_quadrant_gate,
-    BooleanGate = .parse_boolean_gate
+    PolygonGate = .parse_polygon_gates,
+    RectangleGate = .parse_rectangle_gates,
+    QuadrantGate = .parse_quadrant_gates,
+    BooleanGate = .parse_boolean_gates
 )
