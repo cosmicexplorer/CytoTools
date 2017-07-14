@@ -19,14 +19,67 @@ library(dplyr, warn.conflicts = F)
 
 
 
+### Utility functions and macros.
+
+.anon <- function (block, env = parent.frame()) {
+    sb <- substitute(block)
+    eval(bquote(function (.) { eval(.(sb), .(env)) }))
+}
+
+## sprintf() fails silently if any argument is NULL
+.stringify <- function (arg) {
+    if (is.null(arg)) { return("NULL") }
+    num_lines <- getOption("CytoTools_print_lines")
+    to_print <-
+        if (is.null(num_lines)) {
+            arg
+        } else if (is.integer(num_lines)) {
+            head(arg, n = num_lines)
+        } else if (is.na(num_lines)) {
+            arg
+        } else {
+            head(arg)
+        }
+    capture.output(print(to_print))
+}
+
+## exported intentionally
+default_err_fmt_str <- "'%s' is invalid for some reason"
+
+.make_err_msg <- function (arg, error_fmt = default_err_fmt_str) {
+    stop(sprintf(error_fmt, .stringify(arg)))
+}
+
+ensure <- function (arg,
+                     is_valid = Negate(is.null),
+                     otherwise = .make_err_msg,
+                     ...) {
+    ## do match.fun first so we fail even if otherwise succeeds
+    is_valid <- match.fun(is_valid)
+    otherwise <- match.fun(otherwise)
+    if (!is_valid(arg)) {
+        otherwise(arg, ...)
+    } else { arg }
+}
+
+.sprintf_safe <- function (fmt, ...) {
+    dotted <- list(...)
+    checked <- lapply(dotted, .stringify)
+    do.call('sprintf', c(fmt = fmt, checked))
+}
+
+.get_single <- function (lst) {
+    ensure(lst, .anon({length(.) == 1})) %>% .[[1]]
+}
+
+
+
 ### Read/write different representations of flow data.
 
-## NOTE: we only grab a single dataset from each input file, even if more
-## exist. Multiple datasets in an fcs file is deprecated and "implementors are
-## being discouraged to do so." it may exist, but shouldn't be supported.
-
 .read_fcs_flowFrame <- function (fname) {
-    read.FCS(fname, transformation = NULL, truncate_max_range = F)
+    read.FCS(fname, transformation = NULL, truncate_max_range = F) %T>%
+        ## die if there's more than one dataset in the fcs file
+        { stopifnot(.@description[["$NEXTDATA"]] == "0") }
 }
 
 .read_fcs_cyto_frame <- function (fname) {
@@ -42,7 +95,7 @@ library(dplyr, warn.conflicts = F)
     )
 }
 
-read_file <- function (fname) {
+read_file <- function (fname, rx_replace = NULL) {
     ## TODO: does any kind of data cleaning make sense here? see ../README.md
     ## TODO: consider having a cache for this function if files are reused a lot
     ext <- file_ext(fname) %>% tolower
@@ -142,7 +195,7 @@ asinh_transform <- function (x) { asinh(x / 5) }
 
 ## TODO: make config file to canonicalize column names!
 ## Return data frame which contains only marker data.
-.fcs_data_cols <- function (
+.cyto_data_cols <- function (
     frame,
     excl_pats = list(.numeric_pat, .sne_pat),
     excl_preds = list(.is_all_integer)
@@ -171,22 +224,27 @@ shared_markers <- function (frames) {
 
 ### Analyze hierarchies of populations in a dataset.
 
+## .map_names <- function (strs, fn, ...) {
+##     if (is.list(strs)) {
+##         strs <- unlist(strs)
+##     }
+##     if (is.vector(strs)) {
+##         strs <- as.character(strs)
+##     }
+##     lapply(strs, fn, ...) %>% set_names(strs)
+## }
+
 ## TODO: parallelize this!
-emd_fcs <- function (files, outfile,
-                     max_iterations = 10,
-                     verbose = T) {
-    stopifnot(!any(duplicated(files)))
-    n <- length(files)
-    if (verbose) {
-        cat(sprintf("reading in %s files...\n", n))
-    }
-    mats <- lapply(files, function (file) {
-        read_file(file) %>% select(c(tSNE1, tSNE2)) %>%
-            slice(1:1000) %>% as.matrix
+emd_cyto_frames <- function (frames, outfile,
+                             max_iterations = 10,
+                             verbose = T) {
+    n <- length(frames)
+    mats <- lapply(frames, function (frame) {
+        frame %>% select(c(tSNE1, tSNE2)) %>% slice(1:1000) %>% as.matrix
     })
     output <- matrix(vector(mode = "double", length = n * n), nrow = n)
     if (verbose) {
-        cat(sprintf("starting pairwise emd on %s files...\n", n))
+        cat(sprintf("starting pairwise emd on %s data frames...\n", n))
     }
     for (i in 1:n) {
         if (verbose) {
@@ -243,20 +301,16 @@ emd_fcs <- function (files, outfile,
     setNames(mems, markers)
 }
 
-mem_fcs <- function (files, outfile,
-                     markers = NULL,
-                     transform_with = asinh_transform,
-                     verbose = T) {
-    n <- length(files)
+## canonicalize_strings <-
+
+mem_cyto_frames <- function (frames, outfile,
+                             markers = NULL,
+                             transform_with = asinh_transform,
+                             verbose = T) {
+    n <- length(frames)
     if (verbose) {
-        cat(sprintf("performing pairwise MEM on %s files...\n", n))
+        cat(sprintf("performing pairwise MEM on %s data frames...\n", n))
     }
-    frames <- files %>% lapply(function (file) {
-        if (verbose) {
-            cat(sprintf("reading %s...\n", file))
-        }
-        read_file(file)
-    })
     on_markers <-
         if (!is.null(markers)) {
             markers
@@ -264,7 +318,7 @@ mem_fcs <- function (files, outfile,
             if (verbose) {
                 cat("guessing markers to join on...\n")
             }
-            frames %>% lapply(.fcs_data_cols) %>% shared_markers
+            frames %>% lapply(.cyto_data_cols) %>% shared_markers
         }
     if (verbose) {
         cat(sprintf("joining on markers:\n[%s]\n",
@@ -320,7 +374,7 @@ mem_fcs <- function (files, outfile,
 ## .gen_generic <- function (name, ) {
 ## }
 
-setGeneric("add_gate", function (gate, fcs) {
+setGeneric("add_gate", function (gate, cyto_df) {
 
 })
 
@@ -360,11 +414,11 @@ setMethod(
         .Object
     })
 setMethod(
-    "add_gate", c(gate = "RectangleGate", fcs = "data.frame"),
-    function (gate, fcs) {
-        fcs[,gate@gate_name] <- TRUE
+    "add_gate", c(gate = "RectangleGate", cyto_df = "data.frame"),
+    function (gate, cyto_df) {
+        cyto_df[,gate@gate_name] <- TRUE
         Reduce(
-            init = fcs,
+            init = cyto_df,
             x = gate@constraints,
             f = function (acc, constr) {
                 tr_f <- match.fun(
@@ -382,12 +436,14 @@ setMethod(
 ##     "Gate", c("RectangleGate", "PolygonGate", "BooleanGate", "QuadrantGate"))
 
 ## doc <- xmlParse("./allie-paper/CytExp_22899_Gates_v1.xml")
-## fcs <- list.files(path = "./allie-paper/", pattern = "fcs$", full.names = T)
+## cyto_df <- list.files(
+##     path = "./allie-paper/", pattern = "fcs$", full.names = T)
 ## gates <- .parse_rectangle_gates(doc)
-## processed_fcs <- lapply(fcs, function (file) {
-##     Reduce(init = read_file(file), x = gates, f = function (acc, cur) {
-##         add_gate(cur, acc)
-##     })
+## processed_cyto_frames <- lapply(cyto_df, function (cyto_data_file) {
+##     Reduce(init = read_file(cyto_data_file), x = gates,
+##            f = function (acc, cur) {
+##                add_gate(cur, acc)
+##            })
 ## })
 
 .parse_rectangle_gates <- function (xml) {
@@ -400,20 +456,6 @@ setMethod(
 
 .parse_polygon_gates <- function (xml) {
     xml
-}
-
-.anon <- function (block, env = parent.frame()) {
-    sb <- substitute(block)
-    eval(bquote(function (.) { eval(.(sb), .(env)) }))
-}
-
-.ensure <- function (result, pred = is.null) {
-    stopifnot(isTRUE(!((match.fun(pred))(result))))
-    result
-}
-
-.get_single <- function (lst) {
-    .ensure(lst, function (l) length(l) != 1) %>% .[[1]]
 }
 
 .parse_quadrant_gates <- function (xml) {
@@ -434,3 +476,7 @@ setMethod(
     QuadrantGate = .parse_quadrant_gates,
     BooleanGate = .parse_boolean_gates
 )
+
+## Local Variables:
+## ess-r-package-info: ("CytoTools" . "/home/cosmicexplorer/Vandy/irish-lab/CytoTools/")
+## End:

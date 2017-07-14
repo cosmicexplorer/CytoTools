@@ -3,6 +3,8 @@
 ## Written by Danny McClanahan, Irish Lab June 2017.
 ## <danieldmcclanahan@gmail.com>
 
+library(CytoTools)
+
 ### Configure
 ## `color_palette`: Color palette for heatmap.
 color_palette <- colorRampPalette(
@@ -72,12 +74,19 @@ data_files_sorted <- sort_files_by_component(
     split_by = "_",
     orders = list(c(), c("pre", "3wk", "12wk", "6m")))
 
+## read_file(): Parse a CyToF data file (e.g. fcs) into a data frame.
+##   `cyto_data_frames` is a list of data frames containing the content of the
+##   corresponding file in `data_files_sorted`.
+cyto_data_frames <- lapply(data_files_sorted, .anon({
+    list(path = ., content = CytoTools::read_file(.))
+}))
+
 ## emd_fcs(): Run pairwise EMD on input files and produce CSV.
 ##   The resuts are stored in `emd_outfile`.
 ##
 ##   `max_iterations` is the number of iterations to perform when computing EMD.
 ##   Increasing this value *typically* does not change the result at all.
-emd_fcs(data_files_sorted, emd_outfile, max_iterations = 10)
+emd_fcs(cyto_data_frames, emd_outfile, max_iterations = 10)
 ## emd_outfile has row names in column 1
 emd_matrix <- as.matrix(read.csv(emd_outfile, row.names = 1))
 
@@ -88,7 +97,7 @@ dev.off()
 
 ## mem_fcs(): Run pairwise MEM RMSD on input files and produce CSV.
 ##   The resuts are stored in `mem_outfile`.
-mem_fcs(data_files_sorted, mem_outfile)
+mem_fcs(cyto_data_frames, mem_outfile)
 ## mem_outfile has row names in column 1
 mem_matrix <- as.matrix(read.csv(mem_outfile, row.names = 1))
 
