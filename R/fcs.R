@@ -53,17 +53,49 @@ library(dplyr, warn.conflicts = F)
     )
 }
 
-read_file <- function (fname, rx_replace = NULL) {
+## TODO: generate this instead of a list
+## .gen_switch <- function (...) {
+##     do.call('switch', )
+## }
+
+.say <- function (...) { cat(sep = "\n", ...) }
+
+.is_just_string <- function (x) {
+    is.vector(x, mode = 'character') && (length(x) == 1)
+}
+
+.rx_replace_all <- function (init_strs, rx_repls) {
+    stopifnot(is.vector(init_strs, 'character') &&
+              (is.vector(rx_repls, 'character') ||
+               (length(rx_repls) == 0)))
+    n <- length(rx_repls)
+    if (n == 0) { return(init_strs) }
+    regexes <- names(rx_repls)
+    stopifnot(!is.null(regexes) && all(regexes != ''))
+    Reduce(init = init_strs, x = 1:n, f = function (strs, i) {
+        rx <- regexes[i]
+        repl <- rx_repls[i]
+        stopifnot(.is_just_string(rx) && .is_just_string(repl))
+        gsub(rx, repl, strs, ignore.case = F, perl = T)
+    })
+}
+
+read_file <- function (fname, rx_replace = c()) {
     ## TODO: does any kind of data cleaning make sense here? see ../README.md
     ## TODO: consider having a cache for this function if files are reused a lot
     ext <- file_ext(fname) %>% tolower
-    switch(
+    df <- switch(
         ext,
         fcs = .read_fcs_cyto_frame(fname),
         csv = .read_text_cyto_frame(fname, sep = ","),
         txt = .read_text_cyto_frame(fname, sep = "\t"),
         stop(sprintf("unrecognized extension '%s' for file '%s'",
                      ext, fname)))
+    cols <- colnames(df)
+    stopifnot(!any(duplicated(cols)))
+    replaced <- .rx_replace_all(cols, rx_replace)
+    stopifnot((length(replaced) == length(cols)) && !any(duplicated(replaced)))
+    set_colnames(df, replaced)
 }
 
 ## TODO: check validity of data in df? against params/description?
@@ -182,20 +214,10 @@ shared_markers <- function (frames) {
 
 ### Analyze hierarchies of populations in a dataset.
 
-## .map_names <- function (strs, fn, ...) {
-##     if (is.list(strs)) {
-##         strs <- unlist(strs)
-##     }
-##     if (is.vector(strs)) {
-##         strs <- as.character(strs)
-##     }
-##     lapply(strs, fn, ...) %>% set_names(strs)
-## }
-
 ## TODO: parallelize this!
-emd_cyto_frames <- function (frames, outfile,
-                             max_iterations = 10,
-                             verbose = T) {
+pairwise_emd <- function (frames, outfile,
+                          max_iterations = 10,
+                          verbose = T) {
     n <- length(frames)
     mats <- lapply(frames, function (frame) {
         frame %>% select(c(tSNE1, tSNE2)) %>% slice(1:1000) %>% as.matrix
@@ -259,12 +281,10 @@ emd_cyto_frames <- function (frames, outfile,
     setNames(mems, markers)
 }
 
-## canonicalize_strings <-
-
-mem_cyto_frames <- function (frames, outfile,
-                             markers = NULL,
-                             transform_with = asinh_transform,
-                             verbose = T) {
+pairwise_mem <- function (frames, outfile,
+                          markers = NULL,
+                          transform_with = asinh_transform,
+                          verbose = T) {
     n <- length(frames)
     if (verbose) {
         cat(sprintf("performing pairwise MEM on %s data frames...\n", n))

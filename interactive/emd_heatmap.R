@@ -77,16 +77,21 @@ data_files_sorted <- sort_files_by_component(
 ## read_file(): Parse a CyToF data file (e.g. fcs) into a data frame.
 ##   `cyto_data_frames` is a list of data frames containing the content of the
 ##   corresponding file in `data_files_sorted`.
-cyto_data_frames <- lapply(data_files_sorted, .anon({
-    list(path = ., content = CytoTools::read_file(.))
-}))
+##   `name_repls` is a named char vector (which may be empty) where names are
+##   regular expressions ("regexes") to match against CyToF marker names, and
+##   values are replacements. Look at the documentation of gsub() for an example
+##   of regex replacement.
+name_repls <- c("^[cC][dD]([0-9]+)\\-[0-9]+$" = "CD\\1")
+cyto_data_frames <- lapply(data_files_sorted, function (file) {
+    CytoTools::read_file(file, name_repls)
+})
 
-## emd_fcs(): Run pairwise EMD on input files and produce CSV.
-##   The resuts are stored in `emd_outfile`.
+## pairwise_emd(): Run pairwise EMD on CyToF data frames.
+##   The results are stored as a CSV in `emd_outfile`.
 ##
 ##   `max_iterations` is the number of iterations to perform when computing EMD.
 ##   Increasing this value *typically* does not change the result at all.
-emd_fcs(cyto_data_frames, emd_outfile, max_iterations = 10)
+pairwise_emd(cyto_data_frames, emd_outfile, max_iterations = 10)
 ## emd_outfile has row names in column 1
 emd_matrix <- as.matrix(read.csv(emd_outfile, row.names = 1))
 
@@ -95,9 +100,12 @@ heatmap.2(emd_matrix, Rowv = F, Colv = F, dendrogram = "none",
           col = color_palette, trace = "none", density.info = "none")
 dev.off()
 
-## mem_fcs(): Run pairwise MEM RMSD on input files and produce CSV.
-##   The resuts are stored in `mem_outfile`.
-mem_fcs(cyto_data_frames, mem_outfile)
+## pairwise_mem(): Run pairwise MEM RMSD on CyToF data frames.
+##   The results are stored as a CSV in `mem_outfile`.
+##
+##   `transform_with` specifies how the raw channel values should be
+##   transformed. The default is asinh_transform(), which calls asinh(x / 5).
+pairwise_mem(cyto_data_frames, mem_outfile)
 ## mem_outfile has row names in column 1
 mem_matrix <- as.matrix(read.csv(mem_outfile, row.names = 1))
 
