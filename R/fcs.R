@@ -26,50 +26,8 @@ library(dplyr, warn.conflicts = F)
     eval(bquote(function (.) { eval(.(sb), .(env)) }))
 }
 
-## sprintf() fails silently if any argument is NULL
-.stringify <- function (arg) {
-    if (is.null(arg)) { return("NULL") }
-    num_lines <- getOption("CytoTools_print_lines")
-    to_print <-
-        if (is.null(num_lines)) {
-            arg
-        } else if (is.integer(num_lines)) {
-            head(arg, n = num_lines)
-        } else if (is.na(num_lines)) {
-            arg
-        } else {
-            head(arg)
-        }
-    capture.output(print(to_print))
-}
-
-## exported intentionally
-default_err_fmt_str <- "'%s' is invalid for some reason"
-
-.make_err_msg <- function (arg, error_fmt = default_err_fmt_str) {
-    stop(sprintf(error_fmt, .stringify(arg)))
-}
-
-ensure <- function (arg,
-                     is_valid = Negate(is.null),
-                     otherwise = .make_err_msg,
-                     ...) {
-    ## do match.fun first so we fail even if otherwise succeeds
-    is_valid <- match.fun(is_valid)
-    otherwise <- match.fun(otherwise)
-    if (!is_valid(arg)) {
-        otherwise(arg, ...)
-    } else { arg }
-}
-
-.sprintf_safe <- function (fmt, ...) {
-    dotted <- list(...)
-    checked <- lapply(dotted, .stringify)
-    do.call('sprintf', c(fmt = fmt, checked))
-}
-
 .get_single <- function (lst) {
-    ensure(lst, .anon({length(.) == 1})) %>% .[[1]]
+    lst %T>% { stopifnot(length(.) == 1) } %>% .[[1]]
 }
 
 
@@ -476,7 +434,3 @@ setMethod(
     QuadrantGate = .parse_quadrant_gates,
     BooleanGate = .parse_boolean_gates
 )
-
-## Local Variables:
-## ess-r-package-info: ("CytoTools" . "/home/cosmicexplorer/Vandy/irish-lab/CytoTools/")
-## End:
