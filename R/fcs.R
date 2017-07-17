@@ -285,7 +285,7 @@ pairwise_emd <- function (frames, outfile,
 }
 
 pairwise_mem <- function (frames, outfile,
-                          markers = NULL,
+                          markers = NULL, ref_pop = NULL,
                           transform_with = asinh_transform,
                           verbose = T) {
     nm <- .get_names(frames)
@@ -311,10 +311,12 @@ pairwise_mem <- function (frames, outfile,
         df[,on_markers] %>% mutate_all(transform_with)
     })
     stat_dfs <- lapply(marked_pops, function (df) .calc_mag_iqr(df, on_markers))
-    global_ref <- Reduce(x = marked_pops, f = rbind) %>%
-        .calc_mag_iqr(on_markers)
+    used_ref_pop <- if (!is.null(ref_pop)) {
+                        ref_pop
+                    } else { Reduce(x = marked_pops, f = rbind) }
+    ref_mem <- .calc_mag_iqr(used_ref_pop, on_markers)
     mem_vectors <- lapply(stat_dfs, function (st_df) {
-        .calc_mem(st_df, global_ref, on_markers)
+        .calc_mem(st_df, ref_mem, on_markers)
     })
     output <- matrix(vector("double", length = n * n), nrow = n)
     if (verbose) {

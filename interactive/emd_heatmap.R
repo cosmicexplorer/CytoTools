@@ -74,15 +74,18 @@ data_files_sorted <- CytoTools::sort_files_by_component(
     split_by = "_",
     orders = list(c(), c("pre", "3wk", "12wk", "6m")))
 
-## process_cyto_files(): Parse a CyToF data file into a data frame.
+## process_cyto_files(): Parse filenames into CyToF data frames.
 ##   `cyto_data_frames` is a named list of data frames containing the content of
 ##   the corresponding file in `data_files_sorted`. The name of each element
 ##   is the filename which was read to produce the data frame.
 ##
-##   `name_repls` is a named char vector (which may be empty) where names are
-##   regular expressions ("regexes") to match against CyToF marker names, and
-##   values are replacements. Look at the documentation of gsub() for an example
-##   of regex replacement.
+##   Internally, this calls CytoTools::read_cyto_file(), which reads in a single
+##   filename and returns a single data frame.
+##
+##   `name_repls` is a named char vector (which may be empty, or NULL) where
+##   names are regular expressions ("regexes") to match against CyToF marker
+##   names, and values are replacements. Look at the documentation of gsub() for
+##   an example of regex replacement.
 name_repls <- c("^[cC][dD]([0-9]+)\\-[0-9]+$" = "CD\\1")
 cyto_data_frames <- CytoTools::process_cyto_files(data_files_sorted, name_repls)
 
@@ -103,9 +106,17 @@ dev.off()
 ## pairwise_mem(): Run pairwise MEM RMSD on CyToF data frames.
 ##   The results are stored as a CSV in `mem_outfile`.
 ##
+##   `ref_pop` specifies the reference population for MEM calculations. It
+##   defaults to NULL, which uses every event on the input data frames as the
+##   refernece population. If given, this argument should be a data frame
+##   produced from CytoTools::read_cyto_file() or
+##   CytoTools::process_cyto_files().
+##
 ##   `transform_with` specifies how the raw channel values should be
 ##   transformed. The default is asinh_transform(), which calls asinh(x / 5).
-CytoTools::pairwise_mem(cyto_data_frames, mem_outfile)
+mem_ref_pop <- NULL
+mem_ref_pop <- CytoTools::read_cyto_file("", name_repls)
+CytoTools::pairwise_mem(cyto_data_frames, mem_outfile, ref_pop = mem_ref_pop)
 ## mem_outfile has row names in column 1
 mem_matrix <- as.matrix(read.csv(mem_outfile, row.names = 1))
 
