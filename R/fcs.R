@@ -245,7 +245,6 @@ asinh_transform <- function (x) { asinh(x / 5) }
     result
 }
 
-## TODO: parallelize this!
 pairwise_emd <- function (frames, outfile,
                           max_iterations = 10,
                           verbose = T) {
