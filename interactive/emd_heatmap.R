@@ -69,29 +69,29 @@ data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
 ##
 ##   With `split_by` = "" and `orders` = list(), `data_files` is simply sorted
 ##   alphabetically by file name.
-data_files_sorted <- sort_files_by_component(
+data_files_sorted <- CytoTools::sort_files_by_component(
     data_files,
     split_by = "_",
     orders = list(c(), c("pre", "3wk", "12wk", "6m")))
 
-## read_file(): Parse a CyToF data file (e.g. fcs) into a data frame.
-##   `cyto_data_frames` is a list of data frames containing the content of the
-##   corresponding file in `data_files_sorted`.
+## process_cyto_files(): Parse a CyToF data file into a data frame.
+##   `cyto_data_frames` is a named list of data frames containing the content of
+##   the corresponding file in `data_files_sorted`. The name of each element
+##   is the filename which was read to produce the data frame.
+##
 ##   `name_repls` is a named char vector (which may be empty) where names are
 ##   regular expressions ("regexes") to match against CyToF marker names, and
 ##   values are replacements. Look at the documentation of gsub() for an example
 ##   of regex replacement.
 name_repls <- c("^[cC][dD]([0-9]+)\\-[0-9]+$" = "CD\\1")
-cyto_data_frames <- lapply(data_files_sorted, function (file) {
-    CytoTools::read_file(file, name_repls)
-})
+cyto_data_frames <- CytoTools::process_cyto_files(data_files_sorted, name_repls)
 
 ## pairwise_emd(): Run pairwise EMD on CyToF data frames.
 ##   The results are stored as a CSV in `emd_outfile`.
 ##
 ##   `max_iterations` is the number of iterations to perform when computing EMD.
 ##   Increasing this value *typically* does not change the result at all.
-pairwise_emd(cyto_data_frames, emd_outfile, max_iterations = 10)
+CytoTools::pairwise_emd(cyto_data_frames, emd_outfile, max_iterations = 10)
 ## emd_outfile has row names in column 1
 emd_matrix <- as.matrix(read.csv(emd_outfile, row.names = 1))
 
@@ -105,7 +105,7 @@ dev.off()
 ##
 ##   `transform_with` specifies how the raw channel values should be
 ##   transformed. The default is asinh_transform(), which calls asinh(x / 5).
-pairwise_mem(cyto_data_frames, mem_outfile)
+CytoTools::pairwise_mem(cyto_data_frames, mem_outfile)
 ## mem_outfile has row names in column 1
 mem_matrix <- as.matrix(read.csv(mem_outfile, row.names = 1))
 

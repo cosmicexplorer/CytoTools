@@ -5,18 +5,17 @@
 
 
 ### Libraries
-### Keep the libraries up to date
-library(flowCore, warn.conflicts = F)
+library(flowCore)
 library(tools)
 library(digest)
 library(boot)
 library(XML)
 library(gplots)
-library(emdist, warn.conflicts = F)
-library(spade, quietly = T, warn.conflicts = F, verbose = F)
-library(magrittr, warn.conflicts = F)
-library(dplyr, warn.conflicts = F)
-
+library(emdist)
+library(spade, quietly = T, verbose = F)
+library(magrittr)
+library(dplyr)
+library(stringr)
 
 
 ### Utility functions and macros.
@@ -64,23 +63,13 @@ library(dplyr, warn.conflicts = F)
     is.vector(x, mode = 'character') && (length(x) == 1)
 }
 
-.rx_replace_all <- function (init_strs, rx_repls) {
-    stopifnot(is.vector(init_strs, 'character') &&
-              (is.vector(rx_repls, 'character') ||
-               (length(rx_repls) == 0)))
-    n <- length(rx_repls)
-    if (n == 0) { return(init_strs) }
-    regexes <- names(rx_repls)
-    stopifnot(!is.null(regexes) && all(regexes != ''))
-    Reduce(init = init_strs, x = 1:n, f = function (strs, i) {
-        rx <- regexes[i]
-        repl <- rx_repls[i]
-        stopifnot(.is_just_string(rx) && .is_just_string(repl))
-        gsub(rx, repl, strs, ignore.case = F, perl = T)
-    })
+.get_names <- function (x, unique = T) {
+    names(x) %T>%
+        { stopifnot(!is.null(.) || !any(. == '')) } %T>%
+        { stopifnot(!unique || !any(duplicated(.))) }
 }
 
-read_file <- function (fname, rx_replace = c()) {
+read_cyto_file <- function (fname, rx_replace = NULL) {
     ## TODO: does any kind of data cleaning make sense here? see ../README.md
     ## TODO: consider having a cache for this function if files are reused a lot
     ext <- file_ext(fname) %>% tolower
@@ -91,11 +80,24 @@ read_file <- function (fname, rx_replace = c()) {
         txt = .read_text_cyto_frame(fname, sep = "\t"),
         stop(sprintf("unrecognized extension '%s' for file '%s'",
                      ext, fname)))
-    cols <- colnames(df)
-    stopifnot(!any(duplicated(cols)))
-    replaced <- .rx_replace_all(cols, rx_replace)
-    stopifnot((length(replaced) == length(cols)) && !any(duplicated(replaced)))
-    set_colnames(df, replaced)
+    cols <- colnames(df) %T>% { stopifnot(!any(duplicated(.))) }
+    newcols <-
+        if (is.null(rx_replace)) {
+            cols
+        } else {
+            stopifnot(is.vector(rx_replace, 'character') &&
+                      is.vector(.get_names(rx_replace), 'character'))
+            str_replace_all(cols, rx_replace)
+        } %T>% {
+            stopifnot((length(.) == length(cols)) &&
+                      !any(duplicated(.)))
+        }
+    set_colnames(df, newcols)
+}
+
+process_cyto_files <- function (fnames, rx_replace = c()) {
+    lapply(fnames, function (file) read_cyto_file(file, rx_replace)) %>%
+        set_names(fnames)
 }
 
 ## TODO: check validity of data in df? against params/description?
@@ -204,7 +206,7 @@ asinh_transform <- function (x) { asinh(x / 5) }
         })
 }
 
-shared_markers <- function (frames) {
+.shared_markers <- function (frames) {
     ## TODO: find less common columns and check if they're mistakes
     ## TODO: if columns are close but not the same (e.g. levenshtein), show a
     ## warning
@@ -218,6 +220,7 @@ shared_markers <- function (frames) {
 pairwise_emd <- function (frames, outfile,
                           max_iterations = 10,
                           verbose = T) {
+    nm <- .get_names(frames)
     n <- length(frames)
     mats <- lapply(frames, function (frame) {
         frame %>% select(c(tSNE1, tSNE2)) %>% slice(1:1000) %>% as.matrix
@@ -257,8 +260,8 @@ pairwise_emd <- function (frames, outfile,
             }
         }
     }
-    colnames(output) <- files
-    rownames(output) <- files
+    colnames(output) <- nm
+    rownames(output) <- nm
     write.table(output, outfile, sep = ",")
     stopifnot(file.exists(outfile))
     outfile
@@ -285,6 +288,7 @@ pairwise_mem <- function (frames, outfile,
                           markers = NULL,
                           transform_with = asinh_transform,
                           verbose = T) {
+    nm <- .get_names(frames)
     n <- length(frames)
     if (verbose) {
         cat(sprintf("performing pairwise MEM on %s data frames...\n", n))
@@ -296,7 +300,7 @@ pairwise_mem <- function (frames, outfile,
             if (verbose) {
                 cat("guessing markers to join on...\n")
             }
-            frames %>% lapply(.cyto_data_cols) %>% shared_markers
+            frames %>% lapply(.cyto_data_cols) %>% .shared_markers
         }
     if (verbose) {
         cat(sprintf("joining on markers:\n[%s]\n",
@@ -314,7 +318,7 @@ pairwise_mem <- function (frames, outfile,
     })
     output <- matrix(vector("double", length = n * n), nrow = n)
     if (verbose) {
-        cat(sprintf("starting pairwise MEM RMSD on %s files...\n", n))
+        cat(sprintf("starting pairwise MEM RMSD on %s data frames...\n", n))
     }
     for (i in 1:n) {
         if (verbose) {
@@ -329,8 +333,8 @@ pairwise_mem <- function (frames, outfile,
             output[i,j] <- (i_vt - j_vt) ^ 2 %>% sum %>% sqrt
         }
     }
-    colnames(output) <- files
-    rownames(output) <- files
+    colnames(output) <- nm
+    rownames(output) <- nm
     write.table(output, outfile, sep = ",")
     stopifnot(file.exists(outfile))
     outfile
