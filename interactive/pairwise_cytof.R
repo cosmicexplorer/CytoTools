@@ -114,7 +114,6 @@ dev.off()
 ##
 ##   `transform_with` specifies how the raw channel values should be
 ##   transformed. The default is asinh_transform(), which calls asinh(x / 5).
-mem_ref_pop <- NULL
 mem_ref_pop <- CytoTools::read_cyto_file("", name_repls)
 CytoTools::pairwise_mem(cyto_data_frames, mem_outfile, ref_pop = mem_ref_pop)
 ## mem_outfile has row names in column 1
