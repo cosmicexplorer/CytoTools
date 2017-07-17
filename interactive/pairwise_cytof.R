@@ -37,8 +37,8 @@ data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
                          all.files = TRUE, full.names = TRUE, recursive = FALSE,
                          no.. = TRUE)
 
-## sort_files_by_component(): splits filenames into pieces and sorts them.
-##   sort_files_by_component() uses the string in `split_by` to break filenames
+## sort_by_component(): splits filenames into pieces and sorts them.
+##   sort_by_component() uses the string in `split_by` to break filenames
 ##   into components.
 ##
 ##   Splitting "A:B:C" by ":" returns c("A", "B", "C")). We say that the string
@@ -54,7 +54,7 @@ data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
 ##   > data_files <- c("MB004_6m_panel2.fcs", "MB004_3wk_panel2.fcs",
 ##                     "MB004_12wk_panel2.fcs", "MB004_pre_panel2.fcs",
 ##                     "MB005_12wk_panel2.fcs")
-##   > sort_files_by_component(
+##   > sort_by_component(
 ##       data_files,
 ##       split_by = "_",
 ##       orders = list(c("MB005"), c("pre", "3wk", "12wk", "6m")))
@@ -69,7 +69,7 @@ data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
 ##
 ##   With `split_by` = "" and `orders` = list(), `data_files` is simply sorted
 ##   alphabetically by file name.
-data_files_sorted <- CytoTools::sort_files_by_component(
+data_files_sorted <- CytoTools::sort_by_component(
     data_files,
     split_by = "_",
     orders = list(c(), c("pre", "3wk", "12wk", "6m")))
@@ -93,7 +93,7 @@ cyto_data_frames <- CytoTools::process_cyto_files(data_files_sorted, name_repls)
 ##   The results are stored as a CSV in `emd_outfile`.
 ##
 ##   `max_iterations` is the number of iterations to perform when computing EMD.
-##   Increasing this value *typically* does not change the result at all.
+##   Changing this argument *typically* does not change the result at all.
 CytoTools::pairwise_emd(cyto_data_frames, emd_outfile, max_iterations = 10)
 ## emd_outfile has row names in column 1
 emd_matrix <- as.matrix(read.csv(emd_outfile, row.names = 1))
@@ -108,7 +108,7 @@ dev.off()
 ##
 ##   `ref_pop` specifies the reference population for MEM calculations. It
 ##   defaults to NULL, which uses every event on the input data frames as the
-##   refernece population. If given, this argument should be a data frame
+##   reference population. If given, this argument should be a data frame
 ##   produced from CytoTools::read_cyto_file() or
 ##   CytoTools::process_cyto_files().
 ##

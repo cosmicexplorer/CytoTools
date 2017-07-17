@@ -20,11 +20,6 @@ library(stringr)
 
 ### Utility functions and macros.
 
-.anon <- function (block, env = parent.frame()) {
-    sb <- substitute(block)
-    eval(bquote(function (.) { eval(.(sb), .(env)) }))
-}
-
 .get_single <- function (lst) {
     lst %T>% { stopifnot(length(.) == 1) } %>% .[[1]]
 }
@@ -113,7 +108,7 @@ process_cyto_files <- function (fnames, rx_replace = c()) {
     do.call("flowFrame", args, envir = environment())
 }
 
-## used in sort_files_by_component()
+## used in sort_by_component()
 .sort_component_helper <- function (splits, indices, orders) {
     n <- length(indices)
     if (n == 0) {
@@ -151,7 +146,7 @@ process_cyto_files <- function (fnames, rx_replace = c()) {
     c(indices[empty_p], nonempty_reduced$result) %>% unlist
 }
 
-sort_files_by_component <- function (strs, split_by, orders = list(),
+sort_by_component <- function (strs, split_by, orders = list(),
                                      split_fixed = T, value = T) {
     splits <- if (split_fixed) {
                   strsplit(strs, split_by, fixed = T)
@@ -235,6 +230,7 @@ pairwise_emd <- function (frames, outfile,
         }
         i_mat <- mats[[i]]
         i_rows <- dim(i_mat)[1]
+        i_w <- rep(1, i_rows)
         if (i > 1) {
             for (j in 1:(i - 1)) {
                 if (verbose) {
@@ -254,9 +250,15 @@ pairwise_emd <- function (frames, outfile,
                 }
                 j_mat <- mats[[j]]
                 j_rows <- dim(j_mat)[1]
-                output[i,j] <- emdw(i_mat, rep(1, i_rows),
-                                    j_mat, rep(1, j_rows),
-                                    max.iter = max_iterations)
+                j_w <- rep(1, j_rows)
+                timed <- system.time(
+                    output[i,j] <- emdw(
+                        i_mat, i_w,
+                        j_mat, j_w,
+                        max.iter = max_iterations))
+                if (verbose) {
+                    cat(sprintf("time: %s sec\n", timed[3]))
+                }
             }
         }
     }
@@ -345,6 +347,7 @@ pairwise_mem <- function (frames, outfile,
 
 
 ### Wrapper functions for xpath selectors.
+
 .xpath <- function (doc, xpath_str = ".", node = doc, fun = NULL) {
     doc_ns <- xmlNamespaceDefinitions(doc, simplify = T)
     XML::xpathSApply(
