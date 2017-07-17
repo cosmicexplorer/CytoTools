@@ -29,7 +29,8 @@ library(stringr)
 ### Read/write different representations of flow data.
 
 .read_fcs_flowFrame <- function (fname) {
-    read.FCS(fname, transformation = NULL, truncate_max_range = F) %T>%
+    flowCore::read.FCS(
+        fname, transformation = NULL, truncate_max_range = F) %T>%
         ## die if there's more than one dataset in the fcs file
         { stopifnot(.@description[["$NEXTDATA"]] == "0") }
 }
@@ -51,8 +52,6 @@ library(stringr)
 ## .gen_switch <- function (...) {
 ##     do.call('switch', )
 ## }
-
-.say <- function (...) { cat(sep = "\n", ...) }
 
 .is_just_string <- function (x) {
     is.vector(x, mode = 'character') && (length(x) == 1)
@@ -82,7 +81,7 @@ read_cyto_file <- function (fname, rx_replace = NULL) {
         } else {
             stopifnot(is.vector(rx_replace, 'character') &&
                       is.vector(.get_names(rx_replace), 'character'))
-            str_replace_all(cols, rx_replace)
+            stringr::str_replace_all(cols, rx_replace)
         } %T>% {
             stopifnot((length(.) == length(cols)) &&
                       !any(duplicated(.)))
@@ -93,19 +92,6 @@ read_cyto_file <- function (fname, rx_replace = NULL) {
 process_cyto_files <- function (fnames, rx_replace = c()) {
     lapply(fnames, function (file) read_cyto_file(file, rx_replace)) %>%
         set_names(fnames)
-}
-
-## TODO: check validity of data in df? against params/description?
-.make_flowFrame <- function (exprs, parameters, description) {
-    exprs <- as.matrix(exprs)
-    args <- list(exprs = quote(exprs))
-    if (hasArg(parameters)) {
-        args <- c(args, list(parameters = quote(parameters)))
-    }
-    if (hasArg(description)) {
-        args <- c(args, list(description = quote(description)))
-    }
-    do.call("flowFrame", args, envir = environment())
 }
 
 ## used in sort_by_component()
@@ -252,7 +238,7 @@ pairwise_emd <- function (frames, outfile,
                 j_rows <- dim(j_mat)[1]
                 j_w <- rep(1, j_rows)
                 timed <- system.time(
-                    output[i,j] <- emdw(
+                    output[i,j] <- emdist::emdw(
                         i_mat, i_w,
                         j_mat, j_w,
                         max.iter = max_iterations))
@@ -283,7 +269,7 @@ pairwise_emd <- function (frames, outfile,
     flip_mems <- (pop$MAG - ref$MAG) < 0
     mems <- (abs(pop$MAG - ref$MAG) + (ref$IQR / pop$IQR) - 1) *
         ((-2 * flip_mems) + 1)
-    setNames(mems, markers)
+    set_names(mems, markers)
 }
 
 pairwise_mem <- function (frames, outfile,
@@ -349,7 +335,7 @@ pairwise_mem <- function (frames, outfile,
 ### Wrapper functions for xpath selectors.
 
 .xpath <- function (doc, xpath_str = ".", node = doc, fun = NULL) {
-    doc_ns <- xmlNamespaceDefinitions(doc, simplify = T)
+    doc_ns <- XML::xmlNamespaceDefinitions(doc, simplify = T)
     XML::xpathSApply(
         doc = node, path = xpath_str, fun = fun, namespaces = doc_ns)
 }
