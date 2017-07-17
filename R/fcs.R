@@ -16,6 +16,7 @@ library(spade, quietly = T, verbose = F)
 library(magrittr)
 library(dplyr)
 library(stringr)
+library(parallel)
 
 
 ### Utility functions and macros.
@@ -197,6 +198,53 @@ asinh_transform <- function (x) { asinh(x / 5) }
 
 ### Analyze hierarchies of populations in a dataset.
 
+.emd_compute_row <- function (i, n, mats, output, clust, num_cores,
+                              max_iterations, verbose) {
+    stopifnot(is.integer(n) && (length(n) == 1) &&
+              (i <= n) && (length(mats) == n) && all(dim(output) == c(n, n)))
+    ## populate result vector and return
+    result <- vector('double', n)
+    i_mat <- mats[[i]]
+    i_rows <- dim(i_mat)[1]
+    i_w <- rep(1, i_rows)
+    if (i > 1) {
+        for (j in 1:(i - 1)) {
+            result[j] <- output[j, i]
+        }
+    }
+    result[i] <- 0
+    if (i < n) {
+        col_range <- (i + 1):n
+        if (verbose) {
+            cat(sprintf("computing columns %s:%s on %s workers\n",
+                        i + 1, n, num_cores))
+        }
+        ## TODO: see ?parLapply and see if there's an alternative approach
+        ## which would be even faster
+        parallel::parLapply(clust, col_range, function (j) {
+            j_mat <- mats[[j]]
+            j_rows <- dim(j_mat)[1]
+            j_w <- rep(1, j_rows)
+            col_time <- system.time(
+                cur_emd <- emdist::emdw(
+                    i_mat, i_w,
+                    j_mat, j_w,
+                    max.iter = max_iterations))
+            list(j = j,
+                 time = col_time[3],
+                 result = cur_emd,
+                 worker = Sys.getpid())
+        }) %>% lapply(function (r) {
+            if (verbose) {
+                cat(sprintf("column %s took %s sec on worker %s\n",
+                            r$j, r$time, r$worker))
+            }
+            r$result
+        }) %>% unlist -> result[col_range]
+    }
+    result
+}
+
 ## TODO: parallelize this!
 pairwise_emd <- function (frames, outfile,
                           max_iterations = 10,
@@ -210,44 +258,23 @@ pairwise_emd <- function (frames, outfile,
     if (verbose) {
         cat(sprintf("starting pairwise emd on %s data frames...\n", n))
     }
-    for (i in 1:n) {
-        if (verbose) {
-            cat(sprintf("row %s/%s\n", i, n))
-        }
-        i_mat <- mats[[i]]
-        i_rows <- dim(i_mat)[1]
-        i_w <- rep(1, i_rows)
-        if (i > 1) {
-            for (j in 1:(i - 1)) {
-                if (verbose) {
-                    cat(sprintf("column %s/%s\n", j, n))
-                }
-                output[i,j] <- output[j,i]
+    num_cores <- parallel::detectCores()
+    clust <- parallel::makeCluster(num_cores)
+    tryCatch(finally = parallel::stopCluster(clust), {
+        for (i in 1:n) {
+            if (verbose) {
+                cat(sprintf("row %s/%s\n", i, n))
+            }
+            row_time <- system.time(
+                output[i,] <- .emd_compute_row(
+                    i, n, mats, output, clust, num_cores, max_iterations,
+                    verbose))
+            if (verbose) {
+                cat(sprintf("row %s/%s took %s seconds to compute %s columns\n",
+                            i, n, round(row_time[3], 3), (n - i)))
             }
         }
-        output[i,i] <- 0
-        if (verbose) {
-            cat(sprintf("column %s/%s\n", i, n))
-        }
-        if (i < n) {
-            for (j in (i + 1):n) {
-                if (verbose) {
-                    cat(sprintf("column %s/%s\n", j, n))
-                }
-                j_mat <- mats[[j]]
-                j_rows <- dim(j_mat)[1]
-                j_w <- rep(1, j_rows)
-                timed <- system.time(
-                    output[i,j] <- emdist::emdw(
-                        i_mat, i_w,
-                        j_mat, j_w,
-                        max.iter = max_iterations))
-                if (verbose) {
-                    cat(sprintf("time: %s sec\n", timed[3]))
-                }
-            }
-        }
-    }
+    })
     colnames(output) <- nm
     rownames(output) <- nm
     write.table(output, outfile, sep = ",")
