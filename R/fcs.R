@@ -431,6 +431,9 @@ setMethod(
             })
     })
 
+## example:
+## https://github.com/RGLab/CytoML/blob/trunk/R/read.gatingML.cytobank.R
+
 ## setClassUnion(
 ##     "Gate", c("RectangleGate", "PolygonGate", "BooleanGate", "QuadrantGate"))
 
