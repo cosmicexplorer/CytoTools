@@ -27,7 +27,7 @@ read_fcs_flowFrame <- function (fname) {
 }
 
 read_fcs_cyto_frame <- function (fname) {
-    read_fcs_flowFrame(fname) %>% .@exprs %>% as.data.frame
+    read_fcs_flowFrame(fname) %>% flowCore::exprs(.) %>% as.data.frame
 }
 
 read_text_cyto_frame <- function (fname, allow_skip, ...) {
