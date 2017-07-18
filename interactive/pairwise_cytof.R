@@ -1,5 +1,5 @@
-### Run viSNE on a set of files, compute pairwise Earth Mover's Distance (EMD),
-### and generate a heatmap.
+### Compute pairwise Earth Mover's Distance (EMD) and MEM RSMD and generate
+### heatmaps.
 ## Written by Danny McClanahan, Irish Lab June 2017.
 ## <danieldmcclanahan@gmail.com>
 
@@ -22,106 +22,29 @@ mem_heatmap_outfile <- "heatmap_mem.pdf"
 ## Set working directory, if you need to.
 setwd(".")
 
-## data_files: Char vector of files to read data from.
-##   Files can be binary fcs files or text files with headers. ".txt" files will
-##   be read as TSV (sep = "\t"), and ".csv" files as CSV (sep = ",").
-##
-##   NOTE: Files should have two tSNE axes labeled tSNE1 and tSNE2!!!
-##
-##   If the file is a text file (.txt or .csv) and starts with a blank line,
-##   this script will recognize that and skip the initial blank line.
-##
-##   You can manually set data_files as well. For example:
-##   > data_files <- c("file1.fcs", "file2.fcs")
 data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
                          all.files = TRUE, full.names = TRUE, recursive = FALSE,
                          no.. = TRUE)
 
-## sort_by_component(): splits filenames into pieces and sorts them.
-##   sort_by_component() uses the string in `split_by` to break filenames
-##   into components.
-##
-##   Splitting "A:B:C" by ":" returns c("A", "B", "C")). We say that the string
-##   "A:B:C" has components "A" at index 1, "B" at index 2, and "C" at 3.
-##
-##   `orders` is a list of character vectors. If a component shows up here at
-##   the correct index, its file is ordered before other files. Among files
-##   which have matching components at each index, the order is determined by
-##   the order in the character vector at that index.
-##
-##   Example:
-##
-##   > data_files <- c("MB004_6m_panel2.fcs", "MB004_3wk_panel2.fcs",
-##                     "MB004_12wk_panel2.fcs", "MB004_pre_panel2.fcs",
-##                     "MB005_12wk_panel2.fcs")
-##   > sort_by_component(
-##       data_files,
-##       split_by = "_",
-##       orders = list(c("MB005"), c("pre", "3wk", "12wk", "6m")))
-##   [1] "MB005_12wk_panel2.fcs" "MB004_pre_panel2.fcs"  "MB004_3wk_panel2.fcs"
-##   [4] "MB004_12wk_panel2.fcs" "MB004_6m_panel2.fcs"
-##
-##   "MB005" sorts before "MB004" in the first component above because "MB005"
-##   is mentioned in `orders` at index 1, but "MB004" isn't. If we did it again
-##   with `orders` = list(c(), c("pre", "3wk", "12wk", "6m")), the first
-##   component would be sorted alphabetically, so "MB005" would come after
-##   "MB004".
-##
-##   With `split_by` = "" and `orders` = list(), `data_files` is simply sorted
-##   alphabetically by file name.
 data_files_sorted <- CytoTools::sort_by_component(
     data_files,
     split_by = "_",
     orders = list(c(), c("pre", "3wk", "12wk", "6m")))
 
-## process_cyto_files(): Parse filenames into CyToF data frames.
-##   `cyto_data_frames` is a named list of data frames containing the content of
-##   the corresponding file in `data_files_sorted`. The name of each element
-##   is the filename which was read to produce the data frame.
-##
-##   Internally, this calls CytoTools::read_cyto_file(), which reads in a single
-##   filename and returns a single data frame.
-##
-##   `name_repls` is a named char vector (which may be empty, or NULL) where
-##   names are regular expressions ("regexes") to match against CyToF marker
-##   names, and values are replacements. Look at the documentation of gsub() for
-##   an example of regex replacement.
 name_repls <- c("^[cC][dD]([0-9]+)\\-[0-9]+$" = "CD\\1")
-cyto_data_frames <- CytoTools::process_cyto_files(data_files_sorted, name_repls)
+cyto_data_frames <- CytoTools::process_cyto_dataset(
+    data_files_sorted, name_repls)
 
-## pairwise_emd(): Run pairwise EMD on CyToF data frames.
-##   The results are stored as a CSV in `emd_outfile`.
-##
-##   `max_iterations` is the number of iterations to perform when computing EMD.
-##   Changing this argument *typically* does not change the result at all.
 CytoTools::pairwise_emd(cyto_data_frames, emd_outfile, max_iterations = 10)
-## emd_outfile has row names in column 1
-emd_matrix <- as.matrix(read.csv(emd_outfile, row.names = 1))
 
 pdf(emd_heatmap_outfile)
-heatmap.2(emd_matrix, Rowv = F, Colv = F, dendrogram = "none",
-          col = color_palette, trace = "none", density.info = "none")
+CytoTools::plot_pairwise_comparison(emd_outfile, color_palette)
 dev.off()
 
-## pairwise_mem(): Run pairwise MEM RMSD on CyToF data frames.
-##   The results are stored as a CSV in `mem_outfile`.
-##
-##   `ref_pop` specifies the reference population for MEM calculations. It
-##   defaults to NULL, which uses every event on the input data frames as the
-##   reference population. If given, this argument should be a data frame
-##   produced from CytoTools::read_cyto_file() or
-##   CytoTools::process_cyto_files().
-##
-##   `transform_with` specifies how the raw channel values should be
-##   transformed. The default is asinh_transform(), which calls asinh(x / 5).
-mem_ref_pop <- CytoTools::read_cyto_file("", name_repls)
-CytoTools::pairwise_mem(cyto_data_frames, mem_outfile, ref_pop = mem_ref_pop)
-## mem_outfile has row names in column 1
-mem_matrix <- as.matrix(read.csv(mem_outfile, row.names = 1))
+mem_ref_pop <- NULL
+CytoTools::pairwise_mem_rmsd(
+    cyto_data_frames, mem_outfile, ref_pop = mem_ref_pop)
 
 pdf(mem_heatmap_outfile)
-heatmap.2(
-    mem_matrix, col = color_palette,
-    Rowv = F, Colv = F, dendrogram = "none", trace = "none",
-    density.info = "none")
+CytoTools::plot_pairwise_comparison(mem_outfile, color_palette)
 dev.off()
