@@ -38,7 +38,7 @@ cyto_data_frames <- CytoTools::process_cyto_dataset(
 CytoTools::pairwise_emd(cyto_data_frames, emd_outfile, max_iterations = 10)
 
 pdf(emd_heatmap_outfile)
-CytoTools::plot_pairwise_comparison(emd_outfile, color_palette)
+CytoTools::plot_pairwise_comparison(emd_outfile, color_palette = color_palette)
 dev.off()
 
 mem_ref_pop <- NULL
@@ -46,5 +46,6 @@ CytoTools::pairwise_mem_rmsd(
     cyto_data_frames, mem_outfile, ref_pop = mem_ref_pop)
 
 pdf(mem_heatmap_outfile)
-CytoTools::plot_pairwise_comparison(mem_outfile, color_palette)
+CytoTools::plot_pairwise_comparison(
+    mem_outfile, color_palette = color_palette, dendro = T)
 dev.off()

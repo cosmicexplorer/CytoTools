@@ -4,8 +4,7 @@
 \alias{pairwise_emd}
 \title{Compute pairwise EMD of a set of datasets in a viSNE analysis.}
 \usage{
-pairwise_emd(frames, outfile, max_iterations = 10, visne_axes = c("tSNE1",
-  "tSNE2"), verbose = T)
+pairwise_emd(frames, outfile, visne_axes = c("tSNE1", "tSNE2"), verbose = T)
 }
 \arguments{
 \item{frames}{named list of data frames representing CyToF
@@ -14,10 +13,6 @@ datasets. \code{\link{process_cyto_dataset}} can be used to produce this.}
 \item{outfile}{string naming a file path or an open connection which the
 resultant matrix of comparisons is written to with
 \code{\link{write.table}}.}
-
-\item{max_iterations}{Positive integer indicating the maximum iterations used
-to compute EMD. Changing this argument \emph{typically} does not change
-the result very much.}
 
 \item{visne_axes}{character vector indicating the column names containing the
 viSNE channels.}
