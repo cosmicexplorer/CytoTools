@@ -69,7 +69,8 @@ shared_markers <- function (frames) {
 ### Analyze hierarchies of populations in a dataset.
 
 emd_compute_row <- function (i, n, measures, output, clust, num_cores,
-                             verbose) {
+                             verbose,
+                             nscales = 3, scmult = 3, ...) {
     ## only used for argument checking
     cmb <- c(i, n)
     stopifnot(is.integer(cmb) &&
@@ -98,7 +99,10 @@ emd_compute_row <- function (i, n, measures, output, clust, num_cores,
             j_wpp <- measures[[j]]
             ## TODO: allow controlling iterations somehow!
             col_time <- system.time(
-                cur_emd <- transport::wasserstein(i_wpp, j_wpp))
+                cur_emd <- transport::wasserstein(
+                    i_wpp, j_wpp, control = trcontrol(
+                        a = i_wpp, b = j_wpp,
+                        nscales = nscales, scmult = scmult, ...)))
             list(j = j,
                  time = col_time[3],
                  result = cur_emd,
