@@ -22,9 +22,10 @@ mem_heatmap_outfile <- "heatmap_mem.pdf"
 ## Set working directory, if you need to.
 setwd(".")
 
-data_files <- list.files(pattern = "\\.fcs$", ignore.case = TRUE,
-                         all.files = TRUE, full.names = TRUE, recursive = FALSE,
-                         no.. = TRUE)
+data_files <- list.files(
+    path = ".", pattern = "\\.fcs$",
+    ignore.case = TRUE, all.files = TRUE, full.names = TRUE, recursive = FALSE,
+    no.. = TRUE)
 
 data_files_sorted <- CytoTools::sort_by_component(
     data_files,
@@ -42,8 +43,17 @@ CytoTools::plot_pairwise_comparison(emd_outfile, color_palette = color_palette)
 dev.off()
 
 mem_ref_pop <- NULL
+marker_names <- CytoTools::get_marker_names(
+    c(mem_ref_pop, cyto_data_frames),
+    name_filter = c(CytoTools::numeric_channel_name,
+                    CytoTools::sne_channel_name,
+                    ## matches intercalator, e.g. "NA-191"
+                    "^NA-[0-9]+$",
+                    ## matches cisplatin, e.g. "Cisplatin-195"
+                    "^Cisplatin-[0-9]+$"))
 CytoTools::pairwise_mem_rmsd(
-    cyto_data_frames, mem_outfile, ref_pop = mem_ref_pop)
+    cyto_data_frames, mem_outfile,
+    markers = marker_names, ref_pop = mem_ref_pop)
 
 pdf(mem_heatmap_outfile)
 CytoTools::plot_pairwise_comparison(

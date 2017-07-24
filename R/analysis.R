@@ -4,16 +4,99 @@
 
 ### Clean fcs data.
 
-numeric_pat <- "^[[:digit:]]+$"
-sne_pat <- "[sS][nN][eE]"
+#' @title ?
+#'
+#' @description ?
+#'
+#' @export
+#'
+non_pheno_channel_name_patterns <- c(
+    numeric_channel_name,
+    sne_channel_name)
+#' @description ?
+#'
+#' @export
+#' @rdname non_pheno_channel_name_patterns
+#'
+numeric_channel_name <- "^[[:digit:]]+$"
+#' @description ?
+#'
+#' @export
+#' @rdname non_pheno_channel_name_patterns
+#'
+sne_channel_name <- "[sS][nN][eE]"
 
-is_double_vec <- function (vec) {
-    is.vector(vec, mode = "double")
+#' @title ?
+#'
+#' @description ?
+#'
+#' @export
+#'
+non_pheno_channel_content_predicates <- c(is_non_floating_point)
+## FIXME: does read.FCS read in anything except double columns?
+#' @description ?
+#'
+#' @param vec ?
+#'
+#' @return ?
+#'
+#' @export
+#' @rdname non_pheno_channel_content_predicates
+#'
+is_non_floating_point <- function (vec) {
+    (!is.vector(vec, mode = 'double')) ||
+        all(vec == as.integer(vec))
 }
 
-is_all_integer <- function (vec) {
-    ## this benchmarked as the fastest method
-    all(vec == as.integer(vec))
+## Return data frame which contains (probably) only marker data.
+#' @title ?
+#'
+#' @description ?
+#'
+#' @param frames ?
+#' @param name_filter ?
+#' @param content_filter ?
+#' @param ignore.case ?
+#' @param check.spelling ?
+#' @param check.channel_switches ?
+#'
+#' @return ?
+#'
+#' @export
+#'
+get_marker_names <- function
+(
+    frames,
+    name_filter = non_pheno_channel_name_patterns,
+    content_filter = non_pheno_channel_content_predicates,
+    ignore.case = TRUE,
+    check.spelling = TRUE,
+    check.channel_switches = TRUE
+) {
+    frame %>%
+        ## filter out column names by regular expression
+        Reduce(init = ., x = excl_pats, f = function (df, pat) {
+            df %>% select_if({ !grepl(pat, colnames(.), perl = T) })
+        }) %>%
+        ## filter out columns by their value or type
+        Reduce(init = ., x = excl_preds, f = function(df, pred) {
+            ## pred takes a vector and outputs a single logical value
+            ## apply pred to each column of the data frame and remove columns
+            ## for which it returns TRUE
+            df %>% select_if({ !apply(., 2, pred) })
+        })
+}
+
+## Return a char vector containing the column names shared among all data frames
+## given.
+shared_markers <- function (frames) {
+    ## FIXME: find less common columns and check if they're mistakes
+    ## FIXME: if columns are close but not the same (e.g. levenshtein), show a
+    ## warning
+    ## TODO: offer option for MEM RMSD on the marker names shared between each
+    ## pair of files, not just the columns shared between ALL files (and ENSURE
+    ## this is noted and explained)
+    frames %>% lapply(colnames) %>% Reduce(f = intersect)
 }
 
 ## TODO: get a citation for asinh_transform and justify it. get alternatives and
@@ -37,33 +120,6 @@ is_all_integer <- function (vec) {
 #' @export
 #'
 asinh_transform <- function (x) { asinh(x / 5) }
-
-## Return data frame which contains (probably) only marker data.
-cyto_data_cols <- function (frame,
-                            excl_pats = list(numeric_pat, sne_pat),
-                            excl_preds = list(is_all_integer)) {
-    frame %>%
-        ## filter out column names by regular expression
-        Reduce(init = ., x = excl_pats, f = function (df, pat) {
-            df %>% select_if({ !grepl(pat, colnames(.), perl = T) })
-        }) %>%
-        ## filter out columns by their value or type
-        Reduce(init = ., x = excl_preds, f = function(df, pred) {
-            ## pred takes a vector and outputs a single logical value
-            ## apply pred to each column of the data frame and remove columns
-            ## for which it returns TRUE
-            df %>% select_if({ !apply(., 2, pred) })
-        })
-}
-
-## Return a char vector containing the column names shared among all data frames
-## given.
-shared_markers <- function (frames) {
-    ## TODO: find less common columns and check if they're mistakes
-    ## TODO: if columns are close but not the same (e.g. levenshtein), show a
-    ## warning
-    frames %>% lapply(colnames) %>% Reduce(f = intersect)
-}
 
 
 ### Analyze hierarchies of populations in a dataset.
