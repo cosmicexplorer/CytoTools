@@ -2,12 +2,9 @@
 % Please edit documentation in R/io.R
 \name{read_cyto_file}
 \alias{read_cyto_file}
-\alias{process_cyto_dataset}
 \title{Read a CyToF file.}
 \usage{
 read_cyto_file(fname, rx_replace = NULL, allow_skip = TRUE)
-
-process_cyto_dataset(fnames, ...)
 }
 \arguments{
 \item{fname}{character vector of length one. The filename to read in.}
@@ -18,26 +15,15 @@ names, and values are replacements.}
 
 \item{allow_skip}{logical indicating whether to allow reading text files with
 one blank line at the top.}
-
-\item{fnames}{character vector of filenames to read in.}
-
-\item{...}{arguments to pass to \code{\link{read_cyto_file}}.}
 }
 \value{
 \code{\link{read_cyto_file}} returns a data frame containing the
     content of the specified data file. Only channel values are retained --
     any metadata or parameters are dropped.
-
-\code{\link{process_cyto_dataset}} returns a named list of data
-    frames containing the content of each file in \code{fnames}. Names
-    correspond to the filename which was read to produce each data frame.
 }
 \description{
 \code{read_cyto_file} reads a file containing CyToF data into a
     data frame.
-
-\code{process_cyto_dataset} reads CyToF data files with
-    \code{\link{read_cyto_file}}.
 }
 \details{
 Filenames can be binary FCS files or text files with headers. Files

@@ -4,15 +4,6 @@
 
 ### Clean fcs data.
 
-#' @title ?
-#'
-#' @description ?
-#'
-#' @export
-#'
-non_pheno_channel_name_patterns <- c(
-    numeric_channel_name,
-    sne_channel_name)
 #' @description ?
 #'
 #' @export
@@ -25,14 +16,16 @@ numeric_channel_name <- "^[[:digit:]]+$"
 #' @rdname non_pheno_channel_name_patterns
 #'
 sne_channel_name <- "[sS][nN][eE]"
-
 #' @title ?
 #'
 #' @description ?
 #'
 #' @export
 #'
-non_pheno_channel_content_predicates <- c(is_non_floating_point)
+non_pheno_channel_name_patterns <- c(
+    numeric_channel_name,
+    sne_channel_name)
+
 ## FIXME: does read.FCS read in anything except double columns?
 #' @description ?
 #'
@@ -47,8 +40,16 @@ is_non_floating_point <- function (vec) {
     (!is.vector(vec, mode = 'double')) ||
         all(vec == as.integer(vec))
 }
+## FIXME: check for marker columns with "spread" of data as heuristic
+## (e.g. viSNE columns are between +/-30)
+#' @title ?
+#'
+#' @description ?
+#'
+#' @export
+#'
+non_pheno_channel_content_predicates <- c(is_non_floating_point)
 
-## Return data frame which contains (probably) only marker data.
 #' @title ?
 #'
 #' @description ?
@@ -56,11 +57,12 @@ is_non_floating_point <- function (vec) {
 #' @param frames ?
 #' @param name_filter ?
 #' @param content_filter ?
-#' @param ignore.case ?
 #' @param check.spelling ?
 #' @param check.channel_switches ?
 #'
 #' @return ?
+#'
+#' @details ?
 #'
 #' @export
 #'
@@ -69,22 +71,52 @@ get_marker_names <- function
     frames,
     name_filter = non_pheno_channel_name_patterns,
     content_filter = non_pheno_channel_content_predicates,
-    ignore.case = TRUE,
     check.spelling = TRUE,
     check.channel_switches = TRUE
 ) {
-    frame %>%
-        ## filter out column names by regular expression
-        Reduce(init = ., x = excl_pats, f = function (df, pat) {
-            df %>% select_if({ !grepl(pat, colnames(.), perl = T) })
-        }) %>%
-        ## filter out columns by their value or type
-        Reduce(init = ., x = excl_preds, f = function(df, pred) {
-            ## pred takes a vector and outputs a single logical value
-            ## apply pred to each column of the data frame and remove columns
-            ## for which it returns TRUE
-            df %>% select_if({ !apply(., 2, pred) })
+    nm <- get_names(frames)
+    frames_filtered_cols <- lapply(frames, function (fcs_df) {
+        colnames(fcs_df) %>%
+            Reduce(init = ., x = name_filter, f = function (cols, pat) {
+                removed_colnames <- grepl(pat, cols, perl = TRUE)
+                cols[!removed_colnames]
+            }) %>%
+            select(fcs_df, .)
+    })
+    if (check.spelling) {
+        cols_by_frame <- lapply(frames_filtered_cols, colnames)
+        all_cols <- Reduce(f = c, x = cols_by_frame) %>% unique
+        lapply(cols_by_frame, function (cur_cols) {
+
         })
+        lapply(frames_filtered_cols, function (fcs_df) {
+
+        })
+    }
+
+    ## lapply(frames, function (fcs_df) {
+    ##     ## filter out column names by regular expressions
+    ##     Reduce(
+    ##         init = colnames(fcs_df), x = name_filter,
+    ##         f = function (cols, pat) {
+    ##             removed_colnames <- grepl(pat, cols, perl = TRUE)
+    ##             cols[!removed_colnames]
+    ##         })
+    ##     fcs_df[,]
+    ## })
+    ## filtered_frames <- lapply(frames, function (fcs_df) {
+    ##     fcs_filtered_colnames <- fcs_df[,removed_colnames]
+    ##     ## filter out columns by functions of their content
+    ##     fcs_markers_only <- Reduce(
+    ##         init = fcs_filtered_colnames, x = content_filter,
+    ##         f = function (remaining_df, pred) {
+    ##             removed_cols <- apply(remaining_df, 2, pred)
+    ##             remaining_df[,!removed_cols]
+    ##         })
+    ##     fcs_markers_only
+    ## })
+    ## if (check.spelling) {
+    ## }
 }
 
 ## Return a char vector containing the column names shared among all data frames
@@ -181,32 +213,28 @@ emd_compute_row <- function (i, n, measures, output, clust, num_cores,
 #'     between the viSNE axes of each pair of data frames given, and writes the
 #'     resultant double-precision matrix to a CSV file.
 #'
-#' @param frames named list of data frames representing CyToF
-#'     datasets. \code{\link{process_cyto_dataset}} can be used to produce this.
-#' @param outfile string naming a file path or an open connection which the
-#'     resultant matrix of comparisons is written to with
-#'     \code{\link{write.table}}.
+#' @param frames named list of data frames representing CyToF datasets.
 #' @param visne_axes character vector indicating the column names containing the
 #'     viSNE channels.
 #' @param verbose logical. Whether to print progress indicators to the console.
 #'
-#' @return The value of \code{outfile}. \code{outfile} contains both row and
-#'     column names, and should be read back into a matrix for analysis like:
-#'     \code{as.matrix(read.csv(outfile, row.names = 1))}.
+#' @return The resultant matrix of EMD between all pairs of input files's viSNE
+#'     axis values. Row and column names are set to the input file paths.
 #'
 #' @details If \code{length(frames) == n} for some positive integer \code{n}, a
-#'     diagonal n x n matrix \code{mat} is created to represent the EMD between
-#'     each pair of datasets at indices \code{i} and \code{j}, where
-#'     \code{mat[i,j] == mat[j,i]} and \code{mat[i,j]} represents the EMD
-#'     between the two.
+#'     diagonal n x n double-precision floating-point matrix \code{mat} is
+#'     created to represent the EMD between each pair of datasets at indices
+#'     \code{i} and \code{j}, where \code{mat[i,j] == mat[j,i]} and
+#'     \code{mat[i,j]} represents the EMD between the two.
 #'
-#' @seealso \code{\link{emdist::emdw}} for the underlying EMD implementation.
+#' @seealso \code{\link{transport::wasserstein}} for the underlying EMD
+#'     implementation.
 #'
 #' @export
 #'
-pairwise_emd <- function (frames, outfile,
+pairwise_emd <- function (frames,
                           visne_axes = c("tSNE1", "tSNE2"),
-                          verbose = T) {
+                          verbose = TRUE) {
     stopifnot(is.vector(visne_axes, 'character') && (length(visne_axes) > 0))
     nm <- get_names(frames)
     n <- length(frames)
@@ -234,11 +262,7 @@ pairwise_emd <- function (frames, outfile,
             }
         }
     })
-    colnames(output) <- nm
-    rownames(output) <- nm
-    write.table(output, outfile, sep = ",")
-    stopifnot(file.exists(outfile))
-    outfile
+    output %>% set_colnames(nm) %>% set_rownames(nm)
 }
 
 calc_mag_iqr <- function (frame, markers) {
@@ -267,28 +291,22 @@ calc_mem <- function (pop, ref, markers) {
 #'     matrix to a CSV file.
 #'
 #' @param frames named list of data frames representing CyToF
-#'     datasets. \code{\link{process_cyto_dataset}} can be used to produce this.
-#' @param outfile string naming a file path or an open connection which the
-#'     resultant matrix of comparisons is written to with
-#'     \code{\link{write.table}}.
+#'     datasets.
 #' @param markers character vector of channel names to use for the MEM
-#'     calculation, or \code{NULL}. If \code{markers = NULL}, the function will
-#'     guess the markers to perform the MEM analysis on. If \code{verbose =
-#'     TRUE}, the choice of markers will be printed to the console. If
-#'     \code{markers} is non-\code{NULL}, all of the columns indicated should
-#'     exist in each input dataset.
+#'     calculation. All of the columns indicated should exist in each input
+#'     dataset.
 #' @param ref_pop data frame produced by \code{\link{read_cyto_file}} containing
 #'     the reference population to use for the MEM calculation, or
 #'     \code{NULL}. If \code{ref_pop = NULL}, each input dataset will be
 #'     collapsed (using \code{\link{rbind}}) into a single giant reference
 #'     population.
-#' @param transform_with specifies how the raw channel values should be #
-#transformed for direct comparison.
+#' @param transform_with specifies how the raw channel values should be
+#'     transformed for direct comparison.
 #' @param verbose logical. Whether to print progress indicators to the console.
 #'
-#' @return The value of \code{outfile}. \code{outfile} contains both row and
-#'     column names, and should be read back into a matrix for analysis like:
-#'     \code{as.matrix(read.csv(outfile, row.names = 1))}.
+#' @return The resultant matrix of MEM RMSD between all pairs of input files
+#'     along the specified \code{markers}. Row and column names are set to the
+#'     input file paths.
 #'
 #' @details If \code{length(frames) == n} for some positive integer \code{n}, a
 #'     diagonal n x n matrix \code{mat} is created to represent the MEM RMSD
@@ -304,10 +322,10 @@ calc_mem <- function (pop, ref, markers) {
 #'
 #' @export
 #'
-pairwise_mem_rmsd <- function (frames, outfile,
-                               markers = NULL, ref_pop = NULL,
+pairwise_mem_rmsd <- function (frames, markers,
+                               ref_pop = NULL,
                                transform_with = asinh_transform,
-                               verbose = T) {
+                               verbose = TRUE) {
     nm <- get_names(frames)
     n <- length(frames)
     if (verbose) {
@@ -355,11 +373,7 @@ pairwise_mem_rmsd <- function (frames, outfile,
             output[i,j] <- (i_vt - j_vt) ^ 2 %>% sum %>% sqrt
         }
     }
-    colnames(output) <- nm
-    rownames(output) <- nm
-    write.table(output, outfile, sep = ",")
-    stopifnot(file.exists(outfile))
-    outfile
+    output %>% set_colnames(nm) %>% set_rownames(nm)
 }
 
 
@@ -368,9 +382,8 @@ pairwise_mem_rmsd <- function (frames, outfile,
 #' @description \code{plot_pairwise_comparison} plots a heatmap of a pairwise
 #'     comparison of datasets with \code{\link{gplots::heatmap.2}}.
 #'
-#' @param matrix_file string naming a file path or an open connection which a
-#'     comparison matrix is read from. File should be produced by
-#'     \code{\link{pairwise_emd}} or \code{\link{pairwise_mem_rmsd}}.
+#' @param mat A comparison matrix produced by \code{\link{pairwise_emd}} or
+#'     \code{\link{pairwise_mem_rmsd}}.
 #' @param color_palette color palette generated by
 #'     \code{\link{grDevices::colorRampPalette}}, or \code{NULL}.
 #' @param dendro logical. whether to display a dendrogram in the output plot.
@@ -382,7 +395,7 @@ pairwise_mem_rmsd <- function (frames, outfile,
 #'
 #' @export
 #'
-plot_pairwise_comparison <- function (matrix_file,
+plot_pairwise_comparison <- function (mat,
                                       color_palette = NULL,
                                       dendro = FALSE) {
     mat <- as.matrix(read.csv(matrix_file, row.names = 1))

@@ -4,6 +4,7 @@
 ## <danieldmcclanahan@gmail.com>
 
 library(CytoTools)
+library(magrittr)
 
 ### Configure
 ## `color_palette`: Color palette for heatmap.
@@ -22,10 +23,7 @@ mem_heatmap_outfile <- "heatmap_mem.pdf"
 ## Set working directory, if you need to.
 setwd(".")
 
-data_files <- list.files(
-    path = ".", pattern = "\\.fcs$",
-    ignore.case = TRUE, all.files = TRUE, full.names = TRUE, recursive = FALSE,
-    no.. = TRUE)
+data_files <- CytoTools::fcs_file_paths(path = ".")
 
 data_files_sorted <- CytoTools::sort_by_component(
     data_files,
@@ -33,29 +31,37 @@ data_files_sorted <- CytoTools::sort_by_component(
     orders = list(c(), c("pre", "3wk", "12wk", "6m")))
 
 name_repls <- c("^[cC][dD]([0-9]+)\\-[0-9]+$" = "CD\\1")
-cyto_data_frames <- CytoTools::process_cyto_dataset(
-    data_files_sorted, name_repls)
+cytof_data <- lapply(data_files_sorted, function (file_path) {
+    CytoTools::read_cyto_file(file_path, rx_replace = name_repls)
+}) %>% setNames(data_files_sorted)
 
-CytoTools::pairwise_emd(cyto_data_frames, emd_outfile, max_iterations = 10)
+emd_pairwise_matrix <- CytoTools::pairwise_emd(cytof_data)
+## write the EMD comparison matrix to emd_outfile
+write.table(emd_pairwise_matrix, emd_outfile, sep = ',')
 
 pdf(emd_heatmap_outfile)
-CytoTools::plot_pairwise_comparison(emd_outfile, color_palette = color_palette)
+## read the EMD comparison matrix back from emd_outfile
+emd_matrix_fromfile <- emd_outfile %>% read.csv(row.names = 1) %>% as.matrix
+CytoTools::plot_pairwise_comparison(
+    emd_matrix_fromfile, color_palette = color_palette)
 dev.off()
 
 mem_ref_pop <- NULL
 marker_names <- CytoTools::get_marker_names(
-    c(mem_ref_pop, cyto_data_frames),
-    name_filter = c(CytoTools::numeric_channel_name,
-                    CytoTools::sne_channel_name,
+    c(mem_ref_pop, cytof_data),
+    name_filter = c(CytoTools::non_pheno_channel_name_patterns,
                     ## matches intercalator, e.g. "NA-191"
                     "^NA-[0-9]+$",
                     ## matches cisplatin, e.g. "Cisplatin-195"
                     "^Cisplatin-[0-9]+$"))
-CytoTools::pairwise_mem_rmsd(
-    cyto_data_frames, mem_outfile,
-    markers = marker_names, ref_pop = mem_ref_pop)
+mem_pairwise_matrix <- CytoTools::pairwise_mem_rmsd(
+    cytof_data, markers = marker_names, ref_pop = mem_ref_pop)
+## write the MEM RMSD comparison matrix to mem_outfile
+write.table(mem_pairwise_matrix, mem_outfile, sep = ',')
 
 pdf(mem_heatmap_outfile)
+## read the MEM RMSD comparison matrix back from mem_outfile
+mem_matrix_fromfile <- mem_outfile %>% read.csv(row.names = 1) %>% as.matrix
 CytoTools::plot_pairwise_comparison(
-    mem_outfile, color_palette = color_palette, dendro = T)
+    mem_matrix_fromfile, color_palette = color_palette, dendro = TRUE)
 dev.off()

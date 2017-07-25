@@ -4,7 +4,8 @@
 \alias{sort_by_component}
 \title{Sort strings by splitting and ordering.}
 \usage{
-sort_by_component(strs, split_by, orders = list(), fixed = T, value = T)
+sort_by_component(strs, split_by, orders = list(), fixed = TRUE,
+  value = TRUE)
 }
 \arguments{
 \item{strs}{character vector of strings to be sorted.}

@@ -4,23 +4,16 @@
 \alias{pairwise_mem_rmsd}
 \title{Compute pairwise MEM RMSD of a set of CyToF datasets.}
 \usage{
-pairwise_mem_rmsd(frames, outfile, markers = NULL, ref_pop = NULL,
-  transform_with = asinh_transform, verbose = T)
+pairwise_mem_rmsd(frames, markers, ref_pop = NULL,
+  transform_with = asinh_transform, verbose = TRUE)
 }
 \arguments{
 \item{frames}{named list of data frames representing CyToF
-datasets. \code{\link{process_cyto_dataset}} can be used to produce this.}
-
-\item{outfile}{string naming a file path or an open connection which the
-resultant matrix of comparisons is written to with
-\code{\link{write.table}}.}
+datasets.}
 
 \item{markers}{character vector of channel names to use for the MEM
-calculation, or \code{NULL}. If \code{markers = NULL}, the function will
-guess the markers to perform the MEM analysis on. If \code{verbose =
-TRUE}, the choice of markers will be printed to the console. If
-\code{markers} is non-\code{NULL}, all of the columns indicated should
-exist in each input dataset.}
+calculation. All of the columns indicated should exist in each input
+dataset.}
 
 \item{ref_pop}{data frame produced by \code{\link{read_cyto_file}} containing
 the reference population to use for the MEM calculation, or
@@ -28,14 +21,15 @@ the reference population to use for the MEM calculation, or
 collapsed (using \code{\link{rbind}}) into a single giant reference
 population.}
 
-\item{transform_with}{specifies how the raw channel values should be #}
+\item{transform_with}{specifies how the raw channel values should be
+transformed for direct comparison.}
 
 \item{verbose}{logical. Whether to print progress indicators to the console.}
 }
 \value{
-The value of \code{outfile}. \code{outfile} contains both row and
-    column names, and should be read back into a matrix for analysis like:
-    \code{as.matrix(read.csv(outfile, row.names = 1))}.
+The resultant matrix of MEM RMSD between all pairs of input files
+    along the specified \code{markers}. Row and column names are set to the
+    input file paths.
 }
 \description{
 \code{pairwise_mem_rmsd} computes the Root Mean Square Distance

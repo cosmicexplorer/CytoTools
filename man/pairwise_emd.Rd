@@ -4,15 +4,10 @@
 \alias{pairwise_emd}
 \title{Compute pairwise EMD of a set of datasets in a viSNE analysis.}
 \usage{
-pairwise_emd(frames, outfile, visne_axes = c("tSNE1", "tSNE2"), verbose = T)
+pairwise_emd(frames, visne_axes = c("tSNE1", "tSNE2"), verbose = TRUE)
 }
 \arguments{
-\item{frames}{named list of data frames representing CyToF
-datasets. \code{\link{process_cyto_dataset}} can be used to produce this.}
-
-\item{outfile}{string naming a file path or an open connection which the
-resultant matrix of comparisons is written to with
-\code{\link{write.table}}.}
+\item{frames}{named list of data frames representing CyToF datasets.}
 
 \item{visne_axes}{character vector indicating the column names containing the
 viSNE channels.}
@@ -20,9 +15,8 @@ viSNE channels.}
 \item{verbose}{logical. Whether to print progress indicators to the console.}
 }
 \value{
-The value of \code{outfile}. \code{outfile} contains both row and
-    column names, and should be read back into a matrix for analysis like:
-    \code{as.matrix(read.csv(outfile, row.names = 1))}.
+The resultant matrix of EMD between all pairs of input files's viSNE
+    axis values. Row and column names are set to the input file paths.
 }
 \description{
 \code{pairwise_emd} computes the Earth Mover's Distance (EMD)
@@ -31,11 +25,12 @@ The value of \code{outfile}. \code{outfile} contains both row and
 }
 \details{
 If \code{length(frames) == n} for some positive integer \code{n}, a
-    diagonal n x n matrix \code{mat} is created to represent the EMD between
-    each pair of datasets at indices \code{i} and \code{j}, where
-    \code{mat[i,j] == mat[j,i]} and \code{mat[i,j]} represents the EMD
-    between the two.
+    diagonal n x n double-precision floating-point matrix \code{mat} is
+    created to represent the EMD between each pair of datasets at indices
+    \code{i} and \code{j}, where \code{mat[i,j] == mat[j,i]} and
+    \code{mat[i,j]} represents the EMD between the two.
 }
 \seealso{
-\code{\link{emdist::emdw}} for the underlying EMD implementation.
+\code{\link{transport::wasserstein}} for the underlying EMD
+    implementation.
 }

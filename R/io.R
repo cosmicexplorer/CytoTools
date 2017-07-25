@@ -8,111 +8,20 @@
 
 ### Read/write different representations of flow data.
 
-read_fcs_flowFrame <- function (fname) {
-    flowCore::read.FCS(
-        fname, transformation = NULL, truncate_max_range = F) %T>%
-        ## die if there's more than one dataset in the fcs file
-        { stopifnot(.@description[["$NEXTDATA"]] == "0") }
-}
-
-read_fcs_cyto_frame <- function (fname) {
-    read_fcs_flowFrame(fname) %>% flowCore::exprs(.) %>% as.data.frame
-}
-
-read_text_cyto_frame <- function (fname, allow_skip, ...) {
-    tryCatch(
-        read.table(fname, header = T, ...),
-        error = function (e) {
-            if (!allow_skip) { stop(e) }
-            read.table(fname, header = T, skip = 1, ...)
-        }
-    )
-}
-
-
-#' @title Read a CyToF file.
+#' @title ?
 #'
-#' @description \code{read_cyto_file} reads a file containing CyToF data into a
-#'     data frame.
+#' @description ?
 #'
-#' @param fname character vector of length one. The filename to read in.
-#' @param rx_replace named char vector (which may be empty, or NULL), where
-#'     names are regular expressions ("regexes") to match against CyToF marker
-#'     names, and values are replacements.
-#' @param allow_skip logical indicating whether to allow reading text files with
-#'     one blank line at the top.
+#' @param path ?
 #'
-#' @details Filenames can be binary FCS files or text files with headers. Files
-#'     with extension ".fcs" will be read as FCS files with
-#'     \code{\link{flowCore::read.FCS}}. ".txt" files will be read as TSV, while
-#'     ".csv" files will be read as CSV. Extensions are interpreted
-#'     case-insensitively, but files with unrecognized extensions will trigger
-#'     an exception.
-#'
-#'     If the file is a text file (.txt or .csv) and starts with a blank line,
-#'     this function will recognize that and skip the initial blank line, unless
-#'     \code{allow_skip = FALSE}. This handles a known quirk in many real-world
-#'     datasets.
-#'
-#' @return \code{\link{read_cyto_file}} returns a data frame containing the
-#'     content of the specified data file. Only channel values are retained --
-#'     any metadata or parameters are dropped.
-#'
-#' @seealso \code{\link{gsub}} for basic examples of regex replacement, while
-#'     \code{\link{stringr::str_replace_all}} is the function called to perform
-#'     these replacements.
-#'
-#'     \code{\link{flowCore::read.FCS}} is used to read FCS files, while
-#'     \code{\link{read.table}} is used to read TSV and CSV files.
-#'
-#' @rdname process_cyto_dataset
+#' @return ?
 #'
 #' @export
 #'
-read_cyto_file <- function (fname, rx_replace = NULL, allow_skip = TRUE) {
-    ## TODO: does any kind of data cleaning make sense here? see ../README.md
-    ## TODO: consider having a cache for this function if files are reused a lot
-    ext <- tools::file_ext(fname) %>% tolower
-    df <- switch(
-        ext,
-        fcs = read_fcs_cyto_frame(fname),
-        csv = read_text_cyto_frame(fname, allow_skip, sep = ","),
-        txt = read_text_cyto_frame(fname, allow_skip, sep = "\t"),
-        stop(sprintf("unrecognized extension '%s' for file '%s'",
-                     ext, fname)))
-    cols <- colnames(df) %T>% { stopifnot(!any(duplicated(.))) }
-    newcols <-
-        if (is.null(rx_replace)) {
-            cols
-        } else {
-            stopifnot(is.vector(rx_replace, 'character') &&
-                      is.vector(get_names(rx_replace), 'character'))
-            stringr::str_replace_all(cols, rx_replace)
-        } %T>% {
-            stopifnot((length(.) == length(cols)) &&
-                      !any(duplicated(.)))
-        }
-    set_colnames(df, newcols)
-}
-
-
-#' @title Read many CyToF files.
-#'
-#' @description \code{process_cyto_dataset} reads CyToF data files with
-#'     \code{\link{read_cyto_file}}.
-#'
-#' @param fnames character vector of filenames to read in.
-#' @param ... arguments to pass to \code{\link{read_cyto_file}}.
-#'
-#' @return \code{\link{process_cyto_dataset}} returns a named list of data
-#'     frames containing the content of each file in \code{fnames}. Names
-#'     correspond to the filename which was read to produce each data frame.
-#'
-#' @export
-#'
-process_cyto_dataset <- function (fnames, ...) {
-    lapply(fnames, function (file) read_cyto_file(file, ...)) %>%
-        set_names(fnames)
+fcs_file_paths <- function (path = ".") {
+    list.files(path = path, pattern = "\\.fcs$",
+               ignore.case = TRUE, all.files = TRUE, full.names = TRUE,
+               recursive = FALSE, no.. = TRUE)
 }
 
 sort_component_helper <- function (splits, indices, orders) {
@@ -242,11 +151,11 @@ sort_component_helper <- function (splits, indices, orders) {
 #' @export
 #'
 sort_by_component <- function (strs, split_by, orders = list(),
-                               fixed = T, value = T) {
+                               fixed = TRUE, value = TRUE) {
     splits <- if (fixed) {
-                  strsplit(strs, split_by, fixed = T)
+                  strsplit(strs, split_by, fixed = TRUE)
               } else {
-                  strsplit(strs, split_by, perl = T)
+                  strsplit(strs, split_by, perl = TRUE)
               }
     indices <- sort_component_helper(splits, 1:length(splits), orders)
     if (value) {
@@ -254,4 +163,89 @@ sort_by_component <- function (strs, split_by, orders = list(),
     } else {
         indices
     }
+}
+
+read_fcs_flowFrame <- function (fname) {
+    flowCore::read.FCS(
+        fname, transformation = NULL, truncate_max_range = FALSE) %T>%
+        ## die if there's more than one dataset in the fcs file
+        { stopifnot(.@description[["$NEXTDATA"]] == "0") }
+}
+
+read_fcs_cyto_frame <- function (fname) {
+    read_fcs_flowFrame(fname) %>% flowCore::exprs(.) %>% as.data.frame
+}
+
+read_text_cyto_frame <- function (fname, allow_skip, ...) {
+    tryCatch(
+        read.table(fname, header = TRUE, ...),
+        error = function (e) {
+            if (!allow_skip) { stop(e) }
+            read.table(fname, header = TRUE, skip = 1, ...)
+        }
+    )
+}
+
+
+#' @title Read a CyToF file.
+#'
+#' @description \code{read_cyto_file} reads a file containing CyToF data into a
+#'     data frame.
+#'
+#' @param fname character vector of length one. The filename to read in.
+#' @param rx_replace named char vector (which may be empty, or NULL), where
+#'     names are regular expressions ("regexes") to match against CyToF marker
+#'     names, and values are replacements.
+#' @param allow_skip logical indicating whether to allow reading text files with
+#'     one blank line at the top.
+#'
+#' @details Filenames can be binary FCS files or text files with headers. Files
+#'     with extension ".fcs" will be read as FCS files with
+#'     \code{\link{flowCore::read.FCS}}. ".txt" files will be read as TSV, while
+#'     ".csv" files will be read as CSV. Extensions are interpreted
+#'     case-insensitively, but files with unrecognized extensions will trigger
+#'     an exception.
+#'
+#'     If the file is a text file (.txt or .csv) and starts with a blank line,
+#'     this function will recognize that and skip the initial blank line, unless
+#'     \code{allow_skip = FALSE}. This handles a known quirk in many real-world
+#'     datasets.
+#'
+#' @return \code{\link{read_cyto_file}} returns a data frame containing the
+#'     content of the specified data file. Only channel values are retained --
+#'     any metadata or parameters are dropped.
+#'
+#' @seealso \code{\link{gsub}} for basic examples of regex replacement, while
+#'     \code{\link{stringr::str_replace_all}} is the function called to perform
+#'     these replacements.
+#'
+#'     \code{\link{flowCore::read.FCS}} is used to read FCS files, while
+#'     \code{\link{read.table}} is used to read TSV and CSV files.
+#'
+#' @export
+#'
+read_cyto_file <- function (fname, rx_replace = NULL, allow_skip = TRUE) {
+    ## TODO: does any kind of data cleaning make sense here? see ../README.md
+    ## TODO: consider having a cache for this function if files are reused a lot
+    ext <- tools::file_ext(fname) %>% tolower
+    df <- switch(
+        ext,
+        fcs = read_fcs_cyto_frame(fname),
+        csv = read_text_cyto_frame(fname, allow_skip, sep = ","),
+        txt = read_text_cyto_frame(fname, allow_skip, sep = "\t"),
+        stop(sprintf("unrecognized extension '%s' for file '%s'",
+                     ext, fname)))
+    cols <- colnames(df) %T>% { stopifnot(!any(duplicated(.))) }
+    newcols <-
+        if (is.null(rx_replace)) {
+            cols
+        } else {
+            stopifnot(is.vector(rx_replace, 'character') &&
+                      is.vector(get_names(rx_replace), 'character'))
+            stringr::str_replace_all(cols, rx_replace)
+        } %T>% {
+            stopifnot((length(.) == length(cols)) &&
+                      !any(duplicated(.)))
+        }
+    set_colnames(df, newcols)
 }

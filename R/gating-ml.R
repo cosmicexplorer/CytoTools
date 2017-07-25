@@ -4,7 +4,7 @@
 ### Wrapper functions for xpath selectors.
 
 xpath <- function (doc, xpath_str = ".", node = doc, fun = NULL) {
-    doc_ns <- XML::xmlNamespaceDefinitions(doc, simplify = T)
+    doc_ns <- XML::xmlNamespaceDefinitions(doc, simplify = TRUE)
     XML::xpathSApply(
         doc = node, path = xpath_str, fun = fun, namespaces = doc_ns)
 }
@@ -82,7 +82,7 @@ setMethod(
 
 ## doc <- xmlParse("./allie-paper/CytExp_22899_Gates_v1.xml")
 ## cyto_df <- list.files(
-##     path = "./allie-paper/", pattern = "fcs$", full.names = T)
+##     path = "./allie-paper/", pattern = "fcs$", full.names = TRUE)
 ## gates <- parse_rectangle_gates(doc)
 ## processed_cyto_frames <- lapply(cyto_df, function (cyto_data_file) {
 ##     Reduce(init = read_file(cyto_data_file), x = gates,

@@ -17,7 +17,7 @@ is_just_string <- function (x) {
 }
 
 ## get names and perform some extra checks
-get_names <- function (x, unique = T) {
+get_names <- function (x, unique = TRUE) {
     names(x) %T>%
         { stopifnot(!is.null(.) || !any(. == '')) } %T>%
         { stopifnot(!unique || !any(duplicated(.))) }
