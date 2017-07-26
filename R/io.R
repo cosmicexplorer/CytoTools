@@ -18,8 +18,8 @@
 #'
 #' @export
 #'
-fcs_file_paths <- function (path = ".") {
-    list.files(path = path, pattern = "\\.fcs$",
+fcs_file_paths <- function (path = ".", pattern = "\\.fcs$") {
+    list.files(path = path, pattern = pattern,
                ignore.case = TRUE, all.files = TRUE, full.names = TRUE,
                recursive = FALSE, no.. = TRUE)
 }

@@ -63,16 +63,17 @@ normalize_channels <- function
         replace_colnames(by_content, .)
 }
 
-check_marker_spelling <- function (frames, maxdist, norm = tolower) {
-    cols_by_frame <- lapply(frames, colnames)
-    shared_cols <- Reduce(f = intersect, x = cols_by_frame)
-    lapply(cols_by_frame, function (cur_cols) {
-        cur_cols
-    })
+check_marker_spelling <- function (frames
+                                 ## , maxdist, norm = tolower
+                                   ) {
+    ## cols_by_frame <- lapply(frames, colnames)
+    ## shared_cols <- Reduce(f = intersect, x = cols_by_frame)
+    ## lapply(cols_by_frame, function (cur_cols) {
+    ##     cur_cols
+    ## })
 }
 
 check_channel_switches <- function (frames) {
-    frames
 }
 
 ## TODO: try to find non-marker columns with "spread" of data as heuristic
@@ -195,8 +196,8 @@ pairwise_emd <- function (tsne_matrices) {
             msg("row %s/%s took %s seconds to compute %s columns",
                 i, n, round(row_time[3], 3), (n - i))
         }
+        output
     })
-    output
 }
 
 calc_mag_iqr <- function (frame) {
@@ -254,6 +255,7 @@ pairwise_mem_rmsd <- function (frames,
                                ref_pop = NULL,
                                transform_with = asinh_transform) {
     stopifnot(is.list(frames) && length(frames) >= 1)
+    
     markers <- colnames(frames[[1]])
     lapply(frames, function (fcs_df) {
         stopifnot(setequal(colnames(fcs_df), markers))
