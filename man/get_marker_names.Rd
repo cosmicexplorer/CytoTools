@@ -4,12 +4,17 @@
 \alias{get_marker_names}
 \title{?}
 \usage{
-get_marker_names(frames, name_filter = non_pheno_channel_name_patterns,
+get_marker_names(frames, normalize = toupper, rx_replace = c(),
+  name_filter = non_pheno_channel_name_patterns,
   content_filter = non_pheno_channel_content_predicates,
   check.spelling = TRUE, check.channel_switches = TRUE)
 }
 \arguments{
 \item{frames}{?}
+
+\item{normalize}{?}
+
+\item{rx_replace}{?}
 
 \item{name_filter}{?}
 

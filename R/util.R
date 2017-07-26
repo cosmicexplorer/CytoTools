@@ -7,11 +7,6 @@ get_single <- function (lst) {
     lst %T>% { stopifnot(length(.) == 1) } %>% .[[1]]
 }
 
-## TODO: generate a switch by macro
-## gen_switch <- function (...) {
-##     do.call('switch', )
-## }
-
 is_just_string <- function (x) {
     is.vector(x, mode = 'character') && (length(x) == 1)
 }
@@ -20,5 +15,15 @@ is_just_string <- function (x) {
 get_names <- function (x, unique = TRUE) {
     names(x) %T>%
         { stopifnot(!is.null(.) || !any(. == '')) } %T>%
-        { stopifnot(!unique || !any(duplicated(.))) }
+        { stopifnot(!unique || (anyDuplicated(.) == 0)) }
+}
+
+replace_colnames <- function (df, nm) {
+    stopifnot(anyDuplicated(nm, incomparables = NA) == 0)
+    nonna <- !is.na(nm)
+    df[,nonna] %>% set_colnames(nm[nonna])
+}
+
+msg <- function (...) {
+    message(sprintf(...))
 }
