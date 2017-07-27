@@ -123,6 +123,7 @@ emd_compute_row <- function (i, n, measures, output, clust, num_cores) {
             j_wpp <- measures[[j]]
             ## TODO: allow controlling parameters of this calculation!
             col_time <- system.time(
+                gcFirst = FALSE,
                 cur_emd <- transport::wasserstein(
                     i_wpp, j_wpp, control = transport::trcontrol(
                         a = i_wpp, b = j_wpp, nscales = 3, scmult = 3)))
@@ -170,10 +171,12 @@ pairwise_emd <- function (tsne_matrices) {
     ## NOTE: outfile = "" goes to console, EXCEPT in Rgui on Windows!
     clust <- parallel::makeCluster(num_cores, outfile = "")
     time_tot <- system.time(
+        gcFirst = FALSE,
         tryCatch(finally = parallel::stopCluster(clust), {
             for (i in 1:n) {
                 msg("row %s/%s", i, n)
                 row_time <- system.time(
+                    gcFirst = FALSE,
                     output[i,] <- emd_compute_row(
                         i, n, measures, output, clust, num_cores))
                 msg("row %s/%s took %s seconds to compute %s columns",

@@ -32,13 +32,13 @@ cytof_data <- lapply(data_files_sorted, CytoTools::read_cyto_file)
 ## Names are used to mark each file's row and column in the final
 ## heatmap. The below uses ~regex magic~ to make the names look a little
 ## prettier for a specific format of filename.
-names(cytof_data) <- stringr::str_replace_all(
+names(cytof_data) <- CytoTools::replace_matches(
     data_files_sorted,
-    c("^[\\./]*" = "",
-      "\\.fcs$" = "",
-      "viSNE" = "",
-      "^_+|_+$" = "",
-      "_+" = " "))
+    list("^[\\./]*" = "",
+         "\\.fcs$" = "",
+         "viSNE" = "",
+         "^_+|_+$" = "",
+         "_+" = " "))
 
 
 
