@@ -4,27 +4,24 @@
 \alias{pairwise_mem_rmsd}
 \title{Compute pairwise MEM RMSD of a set of CyToF datasets.}
 \usage{
-pairwise_mem_rmsd(frames, markers, ref_pop = NULL,
-  transform_with = asinh_transform, verbose = TRUE)
+pairwise_mem_rmsd(pops, ref_pop = NULL, squash_fun = asinh_transform, ...)
 }
 \arguments{
-\item{frames}{named list of data frames representing CyToF
-datasets.}
-
-\item{markers}{character vector of channel names to use for the MEM
-calculation. All of the columns indicated should exist in each input
-dataset.}
-
 \item{ref_pop}{data frame produced by \code{\link{read_cyto_file}} containing
 the reference population to use for the MEM calculation, or
 \code{NULL}. If \code{ref_pop = NULL}, each input dataset will be
 collapsed (using \code{\link{rbind}}) into a single giant reference
 population.}
 
-\item{transform_with}{specifies how the raw channel values should be
+\item{squash_fun}{specifies how the raw channel values should be
 transformed for direct comparison.}
 
-\item{verbose}{logical. Whether to print progress indicators to the console.}
+\item{frames}{named list of data frames representing CyToF
+datasets.}
+
+\item{markers}{character vector of channel names to use for the MEM
+calculation. All of the columns indicated should exist in each input
+dataset.}
 }
 \value{
 The resultant matrix of MEM RMSD between all pairs of input files

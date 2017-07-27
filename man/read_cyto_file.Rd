@@ -4,17 +4,17 @@
 \alias{read_cyto_file}
 \title{Read a CyToF file.}
 \usage{
-read_cyto_file(fname, rx_replace = NULL, allow_skip = TRUE)
+read_cyto_file(fname, allow_skip = TRUE)
 }
 \arguments{
 \item{fname}{character vector of length one. The filename to read in.}
 
+\item{allow_skip}{logical indicating whether to allow reading text files with
+one blank line at the top.}
+
 \item{rx_replace}{named char vector (which may be empty, or NULL), where
 names are regular expressions ("regexes") to match against CyToF marker
 names, and values are replacements.}
-
-\item{allow_skip}{logical indicating whether to allow reading text files with
-one blank line at the top.}
 }
 \value{
 \code{\link{read_cyto_file}} returns a data frame containing the
@@ -40,7 +40,7 @@ Filenames can be binary FCS files or text files with headers. Files
 }
 \seealso{
 \code{\link{gsub}} for basic examples of regex replacement, while
-    \code{\link{stringr::str_replace_all}} is the function called to perform
+    \code{\link{replace_matches}} is the function called to perform
     these replacements.
 
     \code{\link{flowCore::read.FCS}} is used to read FCS files, while

@@ -27,37 +27,60 @@ data_files_sorted <- CytoTools::sort_by_component(
     split_by = "_",
     orders = list(c(), c("pre", "3wk", "12wk", "6m")))
 
-cytof_data <- setNames(
-    lapply(data_files_sorted, CytoTools::read_cyto_file),
-    data_files_sorted)
+## Read files into a list of data frames.
+cytof_data <- lapply(data_files_sorted, CytoTools::read_cyto_file)
+## Names are used to mark each file's row and column in the final
+## heatmap. The below uses ~regex magic~ to make the names look a little
+## prettier for a specific format of filename.
+names(cytof_data) <- stringr::str_replace_all(
+    data_files_sorted,
+    c("^[\\./]*" = "",
+      "\\.fcs$" = "",
+      "viSNE" = "",
+      "^_+|_+$" = "",
+      "_+" = " "))
 
+
+
+### EMD analysis on viSNE axes
 tsne_matrices <- lapply(cytof_data, function (fcs_df) {
     as.matrix(fcs_df[,c("tSNE1", "tSNE2")])
 })
+
 emd_pairwise_matrix <- CytoTools::pairwise_emd(tsne_matrices)
+
 ## write the EMD comparison matrix to emd_outfile
-write.table(emd_pairwise_matrix, emd_outfile, sep = ',')
+write.csv(emd_pairwise_matrix, emd_outfile)
 
 pdf(emd_heatmap_outfile)
-## read the EMD comparison matrix back from emd_outfile
-emd_matrix_fromfile <- as.matrix(read.csv(emd_outfile, row.names = 1))
-CytoTools::plot_pairwise_comparison(emd_matrix_fromfile, color_palette)
+## read the EMD comparison matrix back from emd_outfile. check.names = FALSE
+## ensures it doesn't mess with our column names's spaces or anything.
+emd_matrix_fromfile <- as.matrix(read.csv(emd_outfile, row.names = 1,
+                                          check.names = FALSE))
+CytoTools::plot_pairwise_comparison(emd_matrix_fromfile, col = color_palette)
 dev.off()
 
-mem_ref_pop <- NULL
-cytof_data_normalized <- CytoTools::normalize_channels(
-    c(mem_ref_pop, cytof_data),
-    channel_name_ops = c(CytoTools::non_pheno_channel_name_patterns,
-                         "^NA$" = NA_character_,
-                         "^CISPLATIN$" = NA_character_))
+
+
+### MEM analysis
 mem_pairwise_matrix <- CytoTools::pairwise_mem_rmsd(
-    cytof_data_normalized, mem_ref_pop)
+    cytof_data, ref_pop = CytoTools::read_cyto_file("./iPSCs.fcs"),
+    channel_name_ops = c(
+        CytoTools::non_pheno_channel_name_patterns,
+        list("^NA$" = NA,
+             "^IR$" = NA,
+             "^CISPLATIN$" = NA)))
+
 ## write the MEM RMSD comparison matrix to mem_outfile
-write.table(mem_pairwise_matrix, mem_outfile, sep = ',')
+write.csv(mem_pairwise_matrix, mem_outfile)
 
 pdf(mem_heatmap_outfile)
 ## read the MEM RMSD comparison matrix back from mem_outfile
-mem_matrix_fromfile <- as.matrix(read.csv(mem_outfile, row.names = 1))
-CytoTools::plot_pairwise_comparison(mem_matrix_fromfile, color_palette,
-                                    dendro = TRUE)
+mem_matrix_fromfile <- as.matrix(read.csv(mem_outfile, row.names = 1,
+                                          check.names = FALSE))
+CytoTools::plot_pairwise_comparison(
+    mem_matrix_fromfile,
+    col = color_palette,
+    cexRow = .25, cexCol = .25, margin = c(5, 5),
+    dendro = TRUE)
 dev.off()

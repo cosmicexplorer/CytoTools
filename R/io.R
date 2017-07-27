@@ -216,7 +216,7 @@ read_text_cyto_frame <- function (fname, allow_skip, ...) {
 #'     any metadata or parameters are dropped.
 #'
 #' @seealso \code{\link{gsub}} for basic examples of regex replacement, while
-#'     \code{\link{stringr::str_replace_all}} is the function called to perform
+#'     \code{\link{replace_matches}} is the function called to perform
 #'     these replacements.
 #'
 #'     \code{\link{flowCore::read.FCS}} is used to read FCS files, while
@@ -224,28 +224,15 @@ read_text_cyto_frame <- function (fname, allow_skip, ...) {
 #'
 #' @export
 #'
-read_cyto_file <- function (fname, rx_replace = NULL, allow_skip = TRUE) {
+read_cyto_file <- function (fname, allow_skip = TRUE) {
     ## TODO: does any kind of data cleaning make sense here? see ../README.md
     ## TODO: consider having a cache for this function if files are reused a lot
     ext <- tools::file_ext(fname) %>% tolower
-    df <- switch(
+    switch(
         ext,
         fcs = read_fcs_cyto_frame(fname),
         csv = read_text_cyto_frame(fname, allow_skip, sep = ","),
         txt = read_text_cyto_frame(fname, allow_skip, sep = "\t"),
         stop(sprintf("unrecognized extension '%s' for file '%s'",
                      ext, fname)))
-    cols <- colnames(df) %T>% { stopifnot(!any(duplicated(.))) }
-    newcols <-
-        if (is.null(rx_replace)) {
-            cols
-        } else {
-            stopifnot(is.vector(rx_replace, 'character') &&
-                      is.vector(get_names(rx_replace), 'character'))
-            stringr::str_replace_all(cols, rx_replace)
-        } %T>% {
-            stopifnot((length(.) == length(cols)) &&
-                      !any(duplicated(.)))
-        }
-    set_colnames(df, newcols)
 }

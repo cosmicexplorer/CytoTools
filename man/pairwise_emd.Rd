@@ -4,22 +4,17 @@
 \alias{pairwise_emd}
 \title{Compute pairwise EMD of a set of datasets in a viSNE analysis.}
 \usage{
-pairwise_emd(frames, visne_axes = c("tSNE1", "tSNE2"), verbose = TRUE)
+pairwise_emd(tsne_matrices)
 }
 \arguments{
-\item{frames}{named list of data frames representing CyToF datasets.}
-
-\item{visne_axes}{character vector indicating the column names containing the
-viSNE channels.}
-
-\item{verbose}{logical. Whether to print progress indicators to the console.}
+\item{tsne_matrices}{?}
 }
 \value{
-The resultant matrix of EMD between all pairs of input files's viSNE
-    axis values. Row and column names are set to the input file paths.
+? The resultant matrix of EMD between all pairs of input files's
+    viSNE axis values. Row and column names are set to the input file paths.
 }
 \description{
-\code{pairwise_emd} computes the Earth Mover's Distance (EMD)
+? \code{pairwise_emd} computes the Earth Mover's Distance (EMD)
     between the viSNE axes of each pair of data frames given, and writes the
     resultant double-precision matrix to a CSV file.
 }

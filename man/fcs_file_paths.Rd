@@ -4,7 +4,7 @@
 \alias{fcs_file_paths}
 \title{?}
 \usage{
-fcs_file_paths(path = ".")
+fcs_file_paths(path = ".", pattern = "\\\\.fcs$")
 }
 \arguments{
 \item{path}{?}

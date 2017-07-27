@@ -32,9 +32,9 @@ non_pheno_channel_content_predicates <- c(is_non_floating_point)
 #'
 #' @export
 #'
-non_pheno_channel_name_patterns <- c(
-    "^[[:digit:]]+$" = NA_character_,
-    "TSNE" = NA_character_,
+non_pheno_channel_name_patterns <- list(
+    "^[[:digit:]]+$" = NA,
+    "[sS][nN][eE]" = NA,
     "\\-[0-9]+$" = "")
 
 #' @title ?
@@ -49,20 +49,22 @@ non_pheno_channel_name_patterns <- c(
 #'
 normalize_channels <- function
 (
-    frame,
+    frame, desc,
     content_filter = non_pheno_channel_content_predicates,
     normalize_channel_names = toupper,
     channel_name_ops = non_pheno_channel_name_patterns
 ) {
     by_content <- Reduce(
         init = frame, x = content_filter,
-        f = function (df, pred) select_if(df, match.fun(pred)))
+        f = function (df, pred) select_if(df, Negate(match.fun(pred))))
     colnames(by_content) %>%
         { match.fun(normalize_channel_names)(.) } %>%
-        str_replace_all(channel_name_ops) %>%
-        replace_colnames(by_content, .)
+        replace_matches(channel_name_ops) %>%
+        replace_colnames(by_content, desc, .)
 }
 
+## TODO: try to find non-marker columns with "spread" of data as heuristic
+## (e.g. viSNE columns are between +/-30) and throw if any found
 check_marker_spelling <- function (frames
                                  ## , maxdist, norm = tolower
                                    ) {
@@ -74,25 +76,6 @@ check_marker_spelling <- function (frames
 }
 
 check_channel_switches <- function (frames) {
-}
-
-## TODO: try to find non-marker columns with "spread" of data as heuristic
-## (e.g. viSNE columns are between +/-30) and throw if any found
-#' @title ?
-#'
-#' @description ?
-#'
-#' @param frames ?
-#'
-#' @return ?
-#'
-#' @details ?
-#'
-#' @export
-#'
-normalize_channels <- function (frames) {
-    nm <- get_names(frames)
-    frames_filtered_cols
 }
 
 ## TODO: get a citation for asinh_transform and justify it. get alternatives and
@@ -135,6 +118,7 @@ emd_compute_row <- function (i, n, measures, output, clust, num_cores) {
         msg("computing columns %s:%s on %s workers", i + 1, n, num_cores)
         ## TODO: see ?parLapply and see if there's an alternative approach
         ## which would be even faster
+        ## NOTE: assignment with -> at bottom!
         parallel::parLapply(clust, col_range, function (j) {
             j_wpp <- measures[[j]]
             ## TODO: allow controlling parameters of this calculation!
@@ -142,13 +126,10 @@ emd_compute_row <- function (i, n, measures, output, clust, num_cores) {
                 cur_emd <- transport::wasserstein(
                     i_wpp, j_wpp, control = transport::trcontrol(
                         a = i_wpp, b = j_wpp, nscales = 3, scmult = 3)))
-            list(j = j,
-                 time = col_time[3],
-                 result = cur_emd,
-                 worker = Sys.getpid())
-        }) %>% lapply(function (r) {
-            msg("column %s took %s sec on worker %s", r$j, r$time, r$worker)
-            r$result
+            ## can't use msg() here because within worker
+            message(sprintf("column %s took %s sec on worker id %s",
+                            j, round(col_time[3], 3), Sys.getpid()))
+            cur_emd
         }) %>% unlist -> result[col_range]
     }
     result
@@ -184,32 +165,41 @@ pairwise_emd <- function (tsne_matrices) {
         transport::wpp(mat, rep(1, dim(mat)[1]))
     })
     output <- matrix(double(n * n), n, n, dimnames = list(nm, nm))
-    msg("starting pairwise emd on %s data frames...", n)
+    msg("starting pairwise emd on %s populations...", n)
     num_cores <- parallel::detectCores()
-    clust <- parallel::makeCluster(num_cores)
-    tryCatch(finally = parallel::stopCluster(clust), {
-        for (i in 1:n) {
-            msg("row %s/%s", i, n)
-            row_time <- system.time(
-                output[i,] <- emd_compute_row(
-                    i, n, measures, output, clust, num_cores))
-            msg("row %s/%s took %s seconds to compute %s columns",
-                i, n, round(row_time[3], 3), (n - i))
-        }
-        output
-    })
+    ## NOTE: outfile = "" goes to console, EXCEPT in Rgui on Windows!
+    clust <- parallel::makeCluster(num_cores, outfile = "")
+    time_tot <- system.time(
+        tryCatch(finally = parallel::stopCluster(clust), {
+            for (i in 1:n) {
+                msg("row %s/%s", i, n)
+                row_time <- system.time(
+                    output[i,] <- emd_compute_row(
+                        i, n, measures, output, clust, num_cores))
+                msg("row %s/%s took %s seconds to compute %s columns",
+                    i, n, round(row_time[3], 3), (n - i))
+            }
+        }))
+    msg("pairwise emd on %s populations took %s seconds",
+        n, round(time_tot[3], 3))
+    output
 }
 
-calc_mag_iqr <- function (frame) {
-    apply(frame, 2, function (col) {
+calc_mag_iqr <- function (pop) {
+    apply(pop, 2, function (col) {
         c(median(col), IQR(col, type = 2))
-    }) %>% set_rownames(c("MAG", "IQR")) %>% t
+    }) %>% set_rownames(c("MAG", "IQR")) %>% t %>% as.data.frame
 }
 
 calc_mem <- function (pop, ref) {
-    flip_mems <- pop$MAG < ref$MAG
-    flip_factors <- (-2 * flip_mems) + 1
-    flip_factors * (abs(pop$MAG - ref$MAG) + (ref$IQR / pop$IQR) - 1)
+    pop_markers <- rownames(pop)
+    rownames(ref) %>% {
+        stopifnot(!is.null(pop_markers) && !is.null(.) &&
+                  all(pop_markers == .))
+    }
+    flip_factors <- (-2 * (pop$MAG < ref$MAG)) + 1
+    mems <- flip_factors * (abs(pop$MAG - ref$MAG) + (ref$IQR / pop$IQR) - 1)
+    setNames(mems, pop_markers)
 }
 
 
@@ -230,7 +220,7 @@ calc_mem <- function (pop, ref) {
 #'     \code{NULL}. If \code{ref_pop = NULL}, each input dataset will be
 #'     collapsed (using \code{\link{rbind}}) into a single giant reference
 #'     population.
-#' @param transform_with specifies how the raw channel values should be
+#' @param squash_fun specifies how the raw channel values should be
 #'     transformed for direct comparison.
 #'
 #' @return The resultant matrix of MEM RMSD between all pairs of input files
@@ -251,38 +241,46 @@ calc_mem <- function (pop, ref) {
 #'
 #' @export
 #'
-pairwise_mem_rmsd <- function (frames,
+pairwise_mem_rmsd <- function (pops,
                                ref_pop = NULL,
-                               transform_with = asinh_transform) {
-    stopifnot(is.list(frames) && length(frames) >= 1)
-    
-    markers <- colnames(frames[[1]])
-    lapply(frames, function (fcs_df) {
-        stopifnot(setequal(colnames(fcs_df), markers))
+                               squash_fun = asinh_transform,
+                               ...) {
+    nm <- get_names(pops)
+    n <- length(pops)
+    normalized_pops <- lapply(1:n, function (i) {
+        normalize_channels(pops[[i]], nm[[i]], ...)
     })
-    nm <- get_names(frames)
-    n <- length(frames)
-    msg("performing pairwise MEM on %s data frames...", n)
-    marked_pops <- lapply(frames, function (df) {
-        df[,markers] %>% mutate_all(match.fun(transform_with))
-    })
-    stat_dfs <- lapply(marked_pops, calc_mag_iqr)
-    used_ref_pop <- if (!is.null(ref_pop)) {
-                        ref_pop
-                    } else { Reduce(x = marked_pops, f = rbind) }
-    ref_mem <- calc_mag_iqr(used_ref_pop)
-    mem_vectors <- lapply(stat_dfs, function (st_df) {
-        calc_mem(st_df, ref_mem) %>% set_names(markers)
-    })
-    output <- matrix(double(n * n), n, n, dimnames = c(nm, nm))
+    shared_channels <- normalized_pops %>%
+        lapply(colnames) %>% Reduce(f = intersect)
+    norm_ref_pop <- if (!is.null(ref_pop)) {
+                        normalize_channels(ref_pop, ...)
+                    } else {
+                        ## don't need to norm again
+                        normalized_pops %>%
+                            lapply((. %>% select(shared_channels))) %>%
+                            Reduce(f = rbind)
+                    }
+    ## noop if ref_pop is null
+    shared_channels <- intersect(shared_channels, colnames(norm_ref_pop))
+    msg("performing pairwise MEM on %s populations...", n)
+    ## TODO: check channels here and throw if misspelling/etc
+    get_pop_stats <-
+        (. %>%
+         select(shared_channels) %>%
+         mutate_all(match.fun(squash_fun)) %>%
+         calc_mag_iqr)
+    stats_by_pop <- normalized_pops %>% lapply(get_pop_stats)
+    ref_stats <- get_pop_stats(norm_ref_pop)
+    mems_by_pop <- stats_by_pop %>% lapply((. %>% calc_mem(., ref_stats)))
+    output <- matrix(double(n * n), n, n, dimnames = list(nm, nm))
     msg("starting pairwise MEM RMSD on %s data frames...", n)
     for (i in 1:n) {
         msg("row %s/%s", i, n)
-        i_vt <- mem_vectors[[i]]
+        i_mem <- mems_by_pop[[i]]
         for (j in 1:n) {
             msg("col %s/%s", j, n)
-            j_vt <- mem_vectors[[j]]
-            output[i,j] <- (i_vt - j_vt) ^ 2 %>% sum %>% sqrt
+            j_mem <- mems_by_pop[[j]]
+            output[i,j] <- ((i_mem - j_mem) ^ 2) %>% sum %>% sqrt
         }
     }
     output
@@ -307,18 +305,19 @@ pairwise_mem_rmsd <- function (frames,
 #'
 #' @export
 #'
-plot_pairwise_comparison <- function (mat,
-                                      color_palette = NULL,
-                                      dendro = FALSE) {
-    arglist <- list(mat, trace = "none", density.info = "none")
-    if (!is.null(color_palette)) {
-        arglist <- c(arglist, list(col = color_palette))
-    }
+plot_pairwise_comparison <- function (mat, dendro = FALSE, ...) {
+    opts <- merge_named_lists(
+        list(...),
+        list(trace = "none", density.info = "none",
+             cexRow = .5, cexCol = .5, margin = c(10, 10)))
     if (!dendro) {
-        arglist <- c(arglist, list(Rowv = FALSE,
-                                   Colv = FALSE,
-                                   dendrogram = "none"))
+        opts <- merge_named_lists(
+            opts,
+            list(Rowv = FALSE,
+                 Colv = FALSE,
+                 dendrogram = "none"))
     }
     map_fun <- get("heatmap.2", asNamespace("gplots"))
-    eval(do.call(map_fun, arglist))
+    arglist <- c(list(mat), opts)
+    do.call(map_fun, arglist)
 }
