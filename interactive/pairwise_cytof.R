@@ -69,6 +69,10 @@ dev.off()
 ### MEM analysis
 mem_pairwise_matrix <- CytoTools::pairwise_mem_rmsd(
     cytof_data, ref_pop = CytoTools::read_cyto_file("./iPSCs.fcs"),
+    ## by default, channel names are transformed with ?toupper when calling
+    ## ?CytoTools::normalize_channels (which is where the ... arguments to
+    ## ?CytoTools::pairwise_mem_rmsd go to), so patterns are written in
+    ## uppercase.
     channel_name_ops = c(
         CytoTools::non_pheno_channel_name_patterns,
         list("^NA$" = NA,
