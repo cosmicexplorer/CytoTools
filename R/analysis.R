@@ -267,7 +267,7 @@ pairwise_mem_rmsd <- function (pops,
     shared_channels <- intersect(shared_channels, colnames(norm_ref_pop))
     msg("joining on %s markers: [%s]",
         length(shared_channels), paste0(shared_channels, collapse = ", "))
-    msg("performing pairwise MEM on %s populations...", n)
+    msg("calculating pairwise MEM RMSD across %s populations...", n)
     ## TODO: check channels here and throw if misspelling/etc
     get_pop_stats <-
         (. %>%
@@ -278,12 +278,9 @@ pairwise_mem_rmsd <- function (pops,
     ref_stats <- get_pop_stats(norm_ref_pop)
     mems_by_pop <- stats_by_pop %>% lapply((. %>% calc_mem(., ref_stats)))
     output <- matrix(double(n * n), n, n, dimnames = list(nm, nm))
-    msg("starting pairwise MEM RMSD on %s data frames...", n)
     for (i in 1:n) {
-        msg("row %s/%s", i, n)
         i_mem <- mems_by_pop[[i]]
         for (j in 1:n) {
-            msg("col %s/%s", j, n)
             j_mem <- mems_by_pop[[j]]
             output[i,j] <- ((i_mem - j_mem) ^ 2) %>% sum %>% sqrt
         }

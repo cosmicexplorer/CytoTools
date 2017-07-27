@@ -31,7 +31,11 @@ data_files_sorted <- CytoTools::sort_by_component(
 cytof_data <- lapply(data_files_sorted, CytoTools::read_cyto_file)
 ## Names are used to mark each file's row and column in the final
 ## heatmap. The below uses ~regex magic~ to make the names look a little
-## prettier for a specific format of filename.
+## prettier for a specific format of filename -- just do:
+##
+## > names(cytof_data) <- data_files_sorted
+##
+## for the easiest option.
 names(cytof_data) <- CytoTools::replace_matches(
     data_files_sorted,
     list("^[\\./]*" = "",
