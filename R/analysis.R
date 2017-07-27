@@ -265,6 +265,8 @@ pairwise_mem_rmsd <- function (pops,
                     }
     ## noop if ref_pop is null
     shared_channels <- intersect(shared_channels, colnames(norm_ref_pop))
+    msg("joining on %s markers: [%s]",
+        length(shared_channels), paste0(shared_channels, collapse = ", "))
     msg("performing pairwise MEM on %s populations...", n)
     ## TODO: check channels here and throw if misspelling/etc
     get_pop_stats <-

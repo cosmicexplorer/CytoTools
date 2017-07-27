@@ -63,7 +63,8 @@ replace_colnames <- function (df, desc, nm) {
             paste0(collapse = ", ", nm[duplicated(nm, incomparables = NA)]),
             paste0(collapse = ", ", nm)))
     }
-    df[,!is.na(nm)]
+    nonna <- !is.na(nm)
+    df[,nonna] %>% set_colnames(nm[nonna])
 }
 
 msg <- function (...) {
