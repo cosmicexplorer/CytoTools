@@ -24,24 +24,28 @@ methods
                 - if this is successful, the transformation becomes extremely useful for generating treatments for diseases
 
 ## viSNE / EMD
-- a viSNE analysis was performed across the dataset
+- a viSNE analysis was performed across the dataset of 47 files
     - output dimensions = 2
     - equal sampling, 5000 events per file
     - iterations = 1000
     - perplexity = 30
     - theta = 0.5
-    - final KL divergence = 5.034414
 - the earth mover's distance was calculated between each pair of files using the `transport` R library
-    - sampled 1000 events randomly without replacement
+    - sampled 1000 events out of each 5000 randomly without replacement
         - same 1000 events used for all comparisons
         - **TODO: is this kosher?**
-    - either "revsimplex" or "shortsimplex", determine which
-        - mention multiscale parameters (`trcontrol()`)
-        - the `transport` library's documentation has a detailed explanation of how the multiscale computation is performed
-    - the `parallel` library was also used to speed the computation
-        - automatically determined number of cores with `parallel::detectCores()`
-    - no specific seed was used
-    - each population was automatically given a `0` EMD compared to itself, and the already-computed EMD scores were reused across the diagonal
+    - convert each `1000x2` matrix into a set of 1000 points in two dimensions, each with weight 1 (`transport::wpp`)
+    - calculate the wasserstein distance between each point set using the `"shortsimplex"` method with no special parameters
+    - optimizations:
+        - the `parallel` library was used to speed the computation
+        - each population was automatically given a `0` EMD compared to itself, and the already-computed EMD scores were reused across the diagonal
+
+## heatmap
+- given square triangular distance matrix
+- scale assigns 100 to pairs of populations with 0 distance between them
+    - e.g. population compared to itself
+- 0 to the pair of populations with the maximum distance between them
+    - among entries in the given distance matrix
 
 1. [x] make emd like mem rmsd
 2. [ ] write description of current working version
