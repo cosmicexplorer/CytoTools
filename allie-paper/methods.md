@@ -24,12 +24,28 @@ methods
                 - if this is successful, the transformation becomes extremely useful for generating treatments for diseases
 
 ## viSNE / EMD
-- cell limits / random sampling
-    - binning (if done)
-    - cross validation (if done)
-- `library(transport)`
-- citations
-    - https://www.math.hmc.edu/~su/papers.dir/metrics.pdf
+- a viSNE analysis was performed across the dataset
+    - output dimensions = 2
+    - equal sampling, 5000 events per file
+    - iterations = 1000
+    - perplexity = 30
+    - theta = 0.5
+    - final KL divergence = 5.034414
+- the earth mover's distance was calculated between each pair of files using the `transport` R library
+    - sampled 1000 events randomly without replacement
+        - same 1000 events used for all comparisons
+        - **TODO: is this kosher?**
+    - either "revsimplex" or "shortsimplex", determine which
+        - mention multiscale parameters (`trcontrol()`)
+        - the `transport` library's documentation has a detailed explanation of how the multiscale computation is performed
+    - the `parallel` library was also used to speed the computation
+        - automatically determined number of cores with `parallel::detectCores()`
+    - no specific seed was used
+    - each population was automatically given a `0` EMD compared to itself, and the already-computed EMD scores were reused across the diagonal
+
+
+### random unrelated links (really)
+- https://www.math.hmc.edu/~su/papers.dir/metrics.pdf
 
 ## MEM / RMSD
 - there's a paper on this so less necessary
