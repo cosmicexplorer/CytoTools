@@ -91,8 +91,8 @@ pdf(mem_heatmap_outfile)
 mem_rmsd_fromfile <- as.matrix(
     read.csv(mem_rmsd_outfile, row.names = 1, check.names = FALSE))
 max_mem_rmsd <- max(abs(mem_rmsd_fromfile))
-## RMSD is >= 0 -- this scales it from 0 - 100
-mem_rmsd_pcnt_scaled <- mem_rmsd_fromfile / max_mem_rmsd * 100
+## RMSD is >= 0 -- this scales it from 0 - 100 (0 is max RMSD, 100 is 0 RMSD)
+mem_rmsd_pcnt_scaled <- 100 - (mem_rmsd_fromfile / max_mem_rmsd * 100)
 CytoTools::plot_pairwise_comparison(
     mem_rmsd_pcnt_scaled, with_dendrograms = TRUE,
     ## play with the number of colors in this variable (at the top of this file)
