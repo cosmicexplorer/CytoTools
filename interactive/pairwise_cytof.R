@@ -80,16 +80,26 @@ mem_df <- CytoTools::calc_mem(
     pheno_data$pop_list, pheno_data$ref,
     IQRthresh = 0.5, scale_limit = 10)
 
+## write this to file so we save all our hard work
 write.csv(mem_df, mem_outfile)
 write.csv(as.matrix(dist(mem_df)), mem_rmsd_outfile)
 
 pdf(mem_heatmap_outfile)
-## read the MEM RMSD comparison matrix back from mem_outfile
+## read the MEM RMSD comparison matrix back from file so we check that we wrote
+## it correctly -- exact same as using as.matrix(dist(mem_df))
 mem_rmsd_fromfile <- as.matrix(
     read.csv(mem_rmsd_outfile, row.names = 1, check.names = FALSE))
-## max_mem_rmsd_mag
+max_mem_rmsd <- max(abs(mem_rmsd_fromfile))
+## RMSD is >= 0 -- this scales it from 0 - 100
+mem_rmsd_pcnt_scaled <- mem_rmsd_fromfile / max_mem_rmsd * 100
 CytoTools::plot_pairwise_comparison(
-    mem_rmsd_fromfile, with_dendrograms = TRUE,
+    mem_rmsd_pcnt_scaled, with_dendrograms = TRUE,
+    ## play with the number of colors in this variable (at the top of this file)
+    ## if the coloration seems weird or the color key is blank
     col = color_palette,
+    ## produces blue density line on color key -- turn to "none" (default) if
+    ## this is not desired
+    density.info = "histogram",
+    ## play with these to adjust axis label sizes
     cexRow = .25, cexCol = .25, margin = c(5, 5))
 dev.off()
