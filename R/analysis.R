@@ -216,7 +216,8 @@ pairwise_emd <- function (tsne_matrices) {
         }))
     msg("pairwise emd on %s populations took %s seconds",
         n, round(time_tot[3], 3))
-    output
+    ## so diagonal is as in a normal distance matrix
+    output[,ncol(output):1] %>% t
 }
 
 normal_iqr <- function (x, ...) {
