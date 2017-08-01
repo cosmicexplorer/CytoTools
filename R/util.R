@@ -11,11 +11,22 @@ is_just_string <- function (x) {
     is.vector(x, mode = 'character') && (length(x) == 1)
 }
 
-## get names and perform some extra checks
-get_names <- function (x, unique = TRUE) {
-    names(x) %T>%
-        { stopifnot(!is.null(.) || !any(. == '')) } %T>%
-        { stopifnot(!unique || (anyDuplicated(.) == 0)) }
+## check if names exist and are defined
+check_names <- function (x, nonempty = TRUE, unique = TRUE) {
+    is.vector(x, mode = 'character') &&
+        (!nonempty || (length(x) > 0)) &&
+        (!any(x == '')) &&
+        (!unique || (anyDuplicated(x) == 0))
+}
+
+compare_names <- function (x, y, ...) {
+    (check_names(x, ...) && check_names(y, ...)) &&
+        (length(x) == length(y)) &&
+        (x == y)
+}
+
+get_names <- function (x, ...) {
+    names(x) %T>% { stopifnot(check_names(., ...)) }
 }
 
 #' @title ?
@@ -59,7 +70,7 @@ replace_colnames <- function (df, desc, nm) {
             "Modify the `channel_name_ops` argument to fix this.",
             "The duplicates are: [%s]",
             "The whole list of normalized channel names is: [%s]"),
-            desc,
+            if (is.null(desc)) { "<no description>" } else { desc },
             paste0(collapse = ", ", nm[duplicated(nm, incomparables = NA)]),
             paste0(collapse = ", ", nm)))
     }

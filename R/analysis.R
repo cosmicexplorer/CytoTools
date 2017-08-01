@@ -41,26 +41,56 @@ non_pheno_channel_name_patterns <- list(
 #'
 #' @description ?
 #'
-#' @param frame ?
+#' @param pop_list ?
+#' @param ref ?
+#' @param transform_fun ?
+#' @param content_filter ?
+#' @param modify_colnames_fun ?
+#' @param channel_name_ops ?
 #'
 #' @return ?
 #'
 #' @export
 #'
-normalize_channels <- function
+normalize_pheno_channels_dataset <- function
 (
-    frame, desc,
+    pop_list,
+    ref = NULL,
+    transform_fun = asinh_transform,
     content_filter = non_pheno_channel_content_predicates,
-    normalize_channel_names = toupper,
+    modify_colnames_fun = toupper,
     channel_name_ops = non_pheno_channel_name_patterns
 ) {
-    by_content <- Reduce(
-        init = frame, x = content_filter,
-        f = function (df, pred) select_if(df, Negate(match.fun(pred))))
-    colnames(by_content) %>%
-        { match.fun(normalize_channel_names)(.) } %>%
-        replace_matches(channel_name_ops) %>%
-        replace_colnames(by_content, desc, .)
+    gen_modify_fun <- function (pop, desc) {
+        by_content <- Reduce(
+            init = pop, x = content_filter,
+            f = function (df, pred) select_if(df, Negate(pred)))
+        colnames(by_content) %>%
+            modify_colnames_fun %>%
+            replace_matches(channel_name_ops) %>%
+            replace_colnames(by_content, desc, .) %>%
+            as.matrix %>%
+            transform_fun
+    }
+    stopifnot(is.list(pop_list))
+    pop_names <- names(pop_list)
+    indiv_normed_channel_pops <- lapply(1:length(pop_list), function (i) {
+        gen_modify_fun(pop_list[[i]], pop_names[[i]])
+    }) %>% set_names(pop_names)
+    shared_channels <- indiv_normed_channel_pops %>%
+        lapply(colnames) %>% Reduce(f = intersect)
+    if (!is.null(ref)) {
+        norm_ref_pop <- gen_modify_fun(ref, "REF")
+        shared_channels <- intersect(shared_channels, colnames(norm_ref_pop))
+    } else {
+        norm_ref_pop <- indiv_normed_channel_pops %>%
+            lapply((. %>% .[,shared_channels])) %>%
+            Reduce(rbind)
+    }
+    list(shared_channels = shared_channels,
+         ref = norm_ref_pop[,shared_channels],
+         pop_list = indiv_normed_channel_pops %>%
+             lapply((. %>% .[,shared_channels])))
 }
 
 ## TODO: try to find non-marker columns with "spread" of data as heuristic
@@ -119,7 +149,8 @@ emd_compute_row <- function (i, n, measures, output, clust, num_cores) {
         ## TODO: see ?parLapply and see if there's an alternative approach
         ## which would be even faster
         ## NOTE: assignment with -> at bottom!
-        parallel::parLapply(clust, col_range, function (j) {
+        ## parallel::parLapply(clust, col_range, function (j) {
+        lapply(col_range, function (j) {
             j_wpp <- measures[[j]]
             ## TODO: allow controlling parameters of this calculation!
             col_time <- system.time(
@@ -188,104 +219,77 @@ pairwise_emd <- function (tsne_matrices) {
     output
 }
 
-calc_mag_iqr <- function (pop) {
-    apply(pop, 2, function (col) {
-        c(median(col), IQR(col, type = 2))
-    }) %>% set_rownames(c("MAG", "IQR")) %>% t %>% as.data.frame
+normal_iqr <- function (x, ...) {
+    IQR(x, type = 2, ...)
 }
 
-calc_mem <- function (pop, ref) {
-    pop_markers <- rownames(pop)
-    rownames(ref) %>% {
-        stopifnot(!is.null(pop_markers) && !is.null(.) &&
-                  all(pop_markers == .))
-    }
-    flip_factors <- (-2 * (pop$MAG < ref$MAG)) + 1
-    mems <- flip_factors * (abs(pop$MAG - ref$MAG) + (ref$IQR / pop$IQR) - 1)
-    setNames(mems, pop_markers)
-}
-
-
-#' @title Compute pairwise MEM RMSD of a set of CyToF datasets.
+#' @title ?
 #'
-#' @description \code{pairwise_mem_rmsd} computes the Root Mean Square Distance
-#'     (RMSD) of the Marker Enrichment Modeling (MEM) score between each each
-#'     pair of data frames given, and writes the resultant double-precision
-#'     matrix to a CSV file.
-#'
-#' @param frames named list of data frames representing CyToF
-#'     datasets.
-#' @param markers character vector of channel names to use for the MEM
-#'     calculation. All of the columns indicated should exist in each input
-#'     dataset.
-#' @param ref_pop data frame produced by \code{\link{read_cyto_file}} containing
-#'     the reference population to use for the MEM calculation, or
-#'     \code{NULL}. If \code{ref_pop = NULL}, each input dataset will be
-#'     collapsed (using \code{\link{rbind}}) into a single giant reference
-#'     population.
-#' @param squash_fun specifies how the raw channel values should be
-#'     transformed for direct comparison.
-#'
-#' @return The resultant matrix of MEM RMSD between all pairs of input files
-#'     along the specified \code{markers}. Row and column names are set to the
-#'     input file paths.
-#'
-#' @details If \code{length(frames) == n} for some positive integer \code{n}, a
-#'     diagonal n x n matrix \code{mat} is created to represent the MEM RMSD
-#'     between each pair of datasets at indices \code{i} and \code{j}, where
-#'     \code{mat[i,j] == mat[j,i]} and \code{mat[i,j]} represents the MEM RMSD
-#'     between the two.
-#'
-#' @seealso \code{\link{asinh_transform}} is the default transform used to
-#'     compare markers.
+#' @description ?
 #'
 #' @references Diggins, Kirsten E., et al. "Characterizing cell subsets using
 #'     marker enrichment modeling." Nature Methods 14.3 (2017): 275-278.
 #'
 #' @export
 #'
-pairwise_mem_rmsd <- function (pops,
-                               ref_pop = NULL,
-                               squash_fun = asinh_transform,
-                               ...) {
-    nm <- get_names(pops)
-    n <- length(pops)
-    normalized_pops <- lapply(1:n, function (i) {
-        normalize_channels(pops[[i]], nm[[i]], ...)
-    })
-    shared_channels <- normalized_pops %>%
-        lapply(colnames) %>% Reduce(f = intersect)
-    norm_ref_pop <- if (!is.null(ref_pop)) {
-                        normalize_channels(ref_pop, ...)
-                    } else {
-                        ## don't need to norm again
-                        normalized_pops %>%
-                            lapply((. %>% select(shared_channels))) %>%
-                            Reduce(f = rbind)
-                    }
-    ## noop if ref_pop is null
-    shared_channels <- intersect(shared_channels, colnames(norm_ref_pop))
-    msg("joining on %s markers: [%s]",
-        length(shared_channels), paste0(shared_channels, collapse = ", "))
-    msg("calculating pairwise MEM RMSD across %s populations...", n)
-    ## TODO: check channels here and throw if misspelling/etc
-    get_pop_stats <-
-        (. %>%
-         select(shared_channels) %>%
-         mutate_all(match.fun(squash_fun)) %>%
-         calc_mag_iqr)
-    stats_by_pop <- normalized_pops %>% lapply(get_pop_stats)
-    ref_stats <- get_pop_stats(norm_ref_pop)
-    mems_by_pop <- stats_by_pop %>% lapply((. %>% calc_mem(., ref_stats)))
-    output <- matrix(double(n * n), n, n, dimnames = list(nm, nm))
-    for (i in 1:n) {
-        i_mem <- mems_by_pop[[i]]
-        for (j in 1:n) {
-            j_mem <- mems_by_pop[[j]]
-            output[i,j] <- ((i_mem - j_mem) ^ 2) %>% sum %>% sqrt
-        }
+mem_iqr_threshold_default <- 0.5
+
+#' @title ?
+#'
+#' @description
+#'
+#' @param pop_list ?
+#' @param ref ?
+#' @param IQRthresh ?
+#' @param scale_limit ?
+#'
+#' @return ?
+#'
+#' @details ?
+#'
+#' @references Diggins, Kirsten E., et al. "Characterizing cell subsets using
+#'     marker enrichment modeling." Nature Methods 14.3 (2017): 275-278.
+#'
+#' @export
+#'
+calc_mem <- function (pop_list, ref,
+                      IQRthresh = mem_iqr_threshold_default,
+                      scale_limit = NULL) {
+    markers <- colnames(ref)
+    for (pop in pop_list) {
+        stopifnot(compare_names(colnames(pop), markers))
     }
-    output
+    pop_names <- names(pop_list)
+    ## make data frames of pop median/iqr
+    mag_pops <- pop_list %>%
+        lapply((. %>% apply(2, median))) %>%
+        Reduce(f = cbind) %>%
+        t %>% set_rownames(pop_names)
+    iqr_pops <- pop_list %>%
+        lapply((. %>% apply(2, normal_iqr))) %>%
+        Reduce(f = cbind) %>%
+        t %>% set_rownames(pop_names)
+    ## vectors for ref stats
+    MAGref <- ref %>% apply(2, median) %>% t
+    IQRref <- ref %>% apply(2, normal_iqr) %>% t
+    ## FIXME: current MEM function takes abs of MAGpop and MAGref (WHY???)
+    mag_diffs <- mag_pops %>%
+        apply(1, function (MAGpop) abs(MAGpop) - abs(MAGref)) %>%
+        t %>% set_colnames(markers)
+    ## FIXME: current MEM function thresholds IQRref as well (WHY???)
+    stopifnot(is.vector(IQRthresh, mode = 'double'), IQRthresh > 0)
+    iqr_ratios_with_threshold <- pmax(iqr_pops, IQRthresh) %>%
+        apply(1, function (IQRpop) pmax(IQRref, IQRthresh) / IQRpop) %>%
+        t %>% set_colnames(markers)
+    ## this is the MEM formula -- see reference
+    mems <- (abs(mag_diffs) + iqr_ratios_with_threshold - 1) * sign(mag_diffs)
+    ## dilate so the greatest MEM value has magnitude equal to scale_limit
+    if (is.null(scale_limit)) {
+        mems
+    } else {
+        max_mem <- mems %>% abs %>% max
+        mems / max_mem * scale_limit
+    }
 }
 
 
@@ -307,17 +311,20 @@ pairwise_mem_rmsd <- function (pops,
 #'
 #' @export
 #'
-plot_pairwise_comparison <- function (mat, dendro = FALSE, ...) {
+plot_pairwise_comparison <- function (mat,
+                                      is_symmetric = TRUE,
+                                      with_dendrograms = FALSE,
+                                      ...) {
     opts <- merge_named_lists(
         list(...),
-        list(trace = "none", density.info = "none",
+        list(trace = "none", density.info = "none", scale = "none",
              cexRow = .5, cexCol = .5, margin = c(10, 10)))
-    if (!dendro) {
+    if (is_symmetric) {
+        opts <- merge_named_lists(opts, list(symm = TRUE))
+    }
+    if (!with_dendrograms) {
         opts <- merge_named_lists(
-            opts,
-            list(Rowv = FALSE,
-                 Colv = FALSE,
-                 dendrogram = "none"))
+            opts, list(Rowv = FALSE, Colv = FALSE, dendrogram = "none"))
     }
     map_fun <- get("heatmap.2", asNamespace("gplots"))
     arglist <- c(list(mat), opts)

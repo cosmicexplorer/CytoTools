@@ -11,14 +11,11 @@ color_palette <- colorRampPalette(
     c("#24658C", "#5CBAA7", "#9ED2A4", "#E2E998", "#FBF7BF", "#FDDC86",
       "#F8A05A", "#EF6342", "#D43E4F")
 )(n = 50)
-## `emd_outfile`: filename for output csv with EMD pairwise comparisons
-emd_outfile <- "emd_out.csv"
-## `emd_heatmap_outfile`: output file containing EMD heatmap as a pdf
+emd_tsne_outfile <- "emd_tsne.csv"
 emd_heatmap_outfile <- "heatmap_emd.pdf"
-## `mem_outfile`: filename for output csv with MEM RMSD pairwise comparisons
-mem_outfile <- "mem_out.csv"
-## `mem_heatmap_outfile`: output file containing MEM heatmap as a pdf
-mem_heatmap_outfile <- "heatmap_mem.pdf"
+mem_outfile <- "mem.csv"
+mem_rmsd_outfile <- "mem_rmsd.csv"
+mem_heatmap_outfile <- "heatmap_mem_rmsd.pdf"
 
 data_files <- CytoTools::fcs_file_paths(path = ".", pattern = "\\.fcs$")
 
@@ -67,28 +64,32 @@ dev.off()
 
 
 ### MEM analysis
-mem_pairwise_matrix <- CytoTools::pairwise_mem_rmsd(
-    cytof_data, ref_pop = CytoTools::read_cyto_file("./iPSCs.fcs"),
-    ## by default, channel names are transformed with ?toupper when calling
-    ## ?CytoTools::normalize_channels (which is where the ... arguments to
-    ## ?CytoTools::pairwise_mem_rmsd go to), so patterns are written in
-    ## uppercase.
+pheno_data <- CytoTools::normalize_pheno_channels_dataset(
+    cytof_data, ref = CytoTools::read_cyto_file("./iPSCs.fcs"),
+    transform_fun = CytoTools::asinh_transform,
     channel_name_ops = c(
         CytoTools::non_pheno_channel_name_patterns,
         list("^NA$" = NA,
              "^IR$" = NA,
              "^CISPLATIN$" = NA)))
 
-## write the MEM RMSD comparison matrix to mem_outfile
-write.csv(mem_pairwise_matrix, mem_outfile)
+markers <- pheno_data$shared_channels
+msg("joining on %s markers: [%s]",
+    length(markers), paste(markers, collapse = ", "))
+mem_df <- CytoTools::calc_mem(
+    pheno_data$pop_list, pheno_data$ref,
+    IQRthresh = 0.5, scale_limit = 10)
+
+write.csv(mem_df, mem_outfile)
+write.csv(as.matrix(dist(mem_df)), mem_rmsd_outfile)
 
 pdf(mem_heatmap_outfile)
 ## read the MEM RMSD comparison matrix back from mem_outfile
-mem_matrix_fromfile <- as.matrix(read.csv(mem_outfile, row.names = 1,
-                                          check.names = FALSE))
+mem_rmsd_fromfile <- as.matrix(
+    read.csv(mem_rmsd_outfile, row.names = 1, check.names = FALSE))
+## max_mem_rmsd_mag
 CytoTools::plot_pairwise_comparison(
-    mem_matrix_fromfile,
+    mem_rmsd_fromfile, with_dendrograms = TRUE,
     col = color_palette,
-    cexRow = .25, cexCol = .25, margin = c(5, 5),
-    dendro = TRUE)
+    cexRow = .25, cexCol = .25, margin = c(5, 5))
 dev.off()
