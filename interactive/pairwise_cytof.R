@@ -74,14 +74,15 @@ pheno_data <- CytoTools::normalize_pheno_channels_dataset(
              "^CISPLATIN$" = NA)))
 
 markers <- pheno_data$shared_channels
-msg("joining on %s markers: [%s]",
-    length(markers), paste(markers, collapse = ", "))
+message(sprintf("joining on %s markers: [%s]",
+                length(markers), paste(markers, collapse = ", ")))
 mem_df <- CytoTools::calc_mem(
     pheno_data$pop_list, pheno_data$ref,
     IQRthresh = 0.5, scale_limit = 10)
 
 ## write this to file so we save all our hard work
 write.csv(mem_df, mem_outfile)
+## create distance matrix (with euclidean distance) from scaled MEM vectors
 write.csv(as.matrix(dist(mem_df)), mem_rmsd_outfile)
 
 pdf(mem_heatmap_outfile)
