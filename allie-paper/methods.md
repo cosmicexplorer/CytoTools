@@ -43,6 +43,12 @@ methods
     - no specific seed was used
     - each population was automatically given a `0` EMD compared to itself, and the already-computed EMD scores were reused across the diagonal
 
+1. [x] make emd like mem rmsd
+2. [ ] write description of current working version
+    - don't forget parallel library
+    - "bullet points ok"
+    - we're sampling and we don't know how that affects result
+3. [ ] try binning instead of sampling and see if we can make something that runs faster without going haywire
 
 ### random unrelated links (really)
 - https://www.math.hmc.edu/~su/papers.dir/metrics.pdf
