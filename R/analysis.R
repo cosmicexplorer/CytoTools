@@ -149,8 +149,8 @@ emd_compute_row <- function (i, n, measures, output, clust, num_cores) {
         ## TODO: see ?parLapply and see if there's an alternative approach
         ## which would be even faster
         ## NOTE: assignment with -> at bottom!
-        ## parallel::parLapply(clust, col_range, function (j) {
-        lapply(col_range, function (j) {
+        parallel::parLapply(clust, col_range, function (j) {
+            ## lapply(col_range, function (j) {
             j_wpp <- measures[[j]]
             ## TODO: allow controlling parameters of this calculation!
             col_time <- system.time(
