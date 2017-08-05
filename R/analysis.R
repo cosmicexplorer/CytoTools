@@ -152,9 +152,12 @@ compute_pairwise_emd_trials <- function (matrices, clust,
                     i_mat[.,] %>% transport::wpp(rep(1, downsample_rows))
                 j_wpp <- sample(1:nrow(j_mat), downsample_rows) %>%
                     j_mat[.,] %>% transport::wpp(rep(1, downsample_rows))
-                single_entry <- timed_execute(transport::wasserstein(
-                    i_wpp, j_wpp, control = transport::trcontrol(
-                        a = i_wpp, b = j_wpp, method = "shortsimplex")))
+                single_entry <- CytoTools::timed_execute(transport::wasserstein(
+                        i_wpp, j_wpp, control = transport::trcontrol(
+                            a = i_wpp, b = j_wpp, method = "shortsimplex")),
+                        ## weird that this is necessary when using timed_execute
+                        ## inside a worker
+                        env = environment())
                 if (verbose_timing) {
                     CytoTools::msg(paste(
                         "run %s/%s for row %s/%s, column %s/%s",

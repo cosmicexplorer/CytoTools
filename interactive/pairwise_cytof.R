@@ -54,10 +54,6 @@ emd_pairwise_analysis <- CytoTools::pairwise_emd(
     summary_funs = list(mean = mean, variance = var),
     verbose_timing = TRUE)
 
-x <- CytoTools::pairwise_emd(
-    tsne_matrices, downsample_rows = 50L, comparison_runs = 2L,
-    summary_funs = list(mean = mean, variance = var))
-
 ## save the EMD mean and variance matrices to file so we don't lose our work
 write.csv(emd_pairwise_analysis$mean, emd_tsne_means_outfile)
 write.csv(emd_pairwise_analysis$variance, emd_tsne_variances_outfile)
@@ -65,12 +61,13 @@ write.csv(emd_pairwise_analysis$variance, emd_tsne_variances_outfile)
 pdf(emd_heatmap_outfile)
 ## read the EMD comparison matrix back from file. check.names = FALSE
 ## ensures it doesn't remove spaces or other characters in our column names
-
 emd_means_fromfile <- as.matrix(read.csv(emd_tsne_means_outfile, row.names = 1,
                                          check.names = FALSE))
-
-CytoTools::plot_pairwise_comparison(emd_means_fromfile, col = color_palette)
-
+CytoTools::plot_pairwise_comparison(
+    emd_means_fromfile,
+    ## play with the number of colors in this variable (at the top of this file)
+    ## if the coloration seems weird or the color key is blank
+    col = color_palette)
 dev.off()
 
 emd_variance_fromfile <- as.matrix(read.csv(emd_tsne_variances_outfile,
@@ -118,10 +115,7 @@ pdf(mem_heatmap_outfile)
 mem_rmsd_fromfile <- as.matrix(
     read.csv(mem_rmsd_outfile, row.names = 1, check.names = FALSE))
 CytoTools::plot_pairwise_comparison(
-    mem_rmsd_fromfile, with_dendrograms = TRUE,
-    ## play with the number of colors in this variable (at the top of this file)
-    ## if the coloration seems weird or the color key is blank
-    col = color_palette,
+    mem_rmsd_fromfile, with_dendrograms = TRUE, col = color_palette,
     ## play with these to adjust axis label sizes
     cexRow = .25, cexCol = .25, margin = c(5, 5))
 dev.off()
