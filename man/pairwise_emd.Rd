@@ -4,7 +4,10 @@
 \alias{pairwise_emd}
 \title{Compute pairwise EMD of a set of datasets in a viSNE analysis.}
 \usage{
-pairwise_emd(tsne_matrices)
+pairwise_emd(tsne_matrices, downsample_rows = emd_downsample_rows_default,
+  comparison_runs = emd_comparison_runs_default, summary_funs = list(mean =
+  mean, variance = var), parallel_cores = parallel::detectCores(),
+  verbose_timing = FALSE)
 }
 \arguments{
 \item{tsne_matrices}{?}

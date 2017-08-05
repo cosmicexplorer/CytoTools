@@ -11,7 +11,8 @@ color_palette <- colorRampPalette(
     c("#24658C", "#5CBAA7", "#9ED2A4", "#E2E998", "#FBF7BF", "#FDDC86",
       "#F8A05A", "#EF6342", "#D43E4F")
 )(n = 50)
-emd_tsne_outfile <- "emd_tsne.csv"
+emd_tsne_means_outfile <- "emd_tsne_means.csv"
+emd_tsne_variances_outfile <- "emd_tsne_variances.csv"
 emd_heatmap_outfile <- "heatmap_emd.pdf"
 mem_outfile <- "mem.csv"
 mem_rmsd_outfile <- "mem_rmsd.csv"
@@ -48,19 +49,45 @@ tsne_matrices <- lapply(cytof_data, function (fcs_df) {
     as.matrix(fcs_df[,c("tSNE1", "tSNE2")])
 })
 
-emd_pairwise_matrix <- CytoTools::pairwise_emd(tsne_matrices)
+emd_pairwise_analysis <- CytoTools::pairwise_emd(
+    tsne_matrices, downsample_rows = 100L, comparison_runs = 5L,
+    summary_funs = list(mean = mean, variance = var),
+    verbose_timing = TRUE)
 
-## write the EMD comparison matrix to emd_outfile
-write.csv(emd_pairwise_matrix, emd_tsne_outfile)
+x <- CytoTools::pairwise_emd(
+    tsne_matrices, downsample_rows = 50L, comparison_runs = 2L,
+    summary_funs = list(mean = mean, variance = var))
+
+## save the EMD mean and variance matrices to file so we don't lose our work
+write.csv(emd_pairwise_analysis$mean, emd_tsne_means_outfile)
+write.csv(emd_pairwise_analysis$variance, emd_tsne_variances_outfile)
 
 pdf(emd_heatmap_outfile)
-## read the EMD comparison matrix back from emd_outfile. check.names = FALSE
-## ensures it doesn't mess with our column names's spaces or anything.
-emd_matrix_fromfile <- as.matrix(read.csv(emd_tsne_outfile, row.names = 1,
-                                          check.names = FALSE))
-CytoTools::plot_pairwise_comparison(emd_matrix_fromfile, col = color_palette)
+## read the EMD comparison matrix back from file. check.names = FALSE
+## ensures it doesn't remove spaces or other characters in our column names
+
+emd_means_fromfile <- as.matrix(read.csv(emd_tsne_means_outfile, row.names = 1,
+                                         check.names = FALSE))
+
+CytoTools::plot_pairwise_comparison(emd_means_fromfile, col = color_palette)
+
 dev.off()
 
+emd_variance_fromfile <- as.matrix(read.csv(emd_tsne_variances_outfile,
+                                            row.names = 1, check.names = FALSE))
+
+## you can quickly see a histogram to see if any variances seem too high
+hist(emd_variance_fromfile)
+
+## or, you can plot a heatmap and see which pairs of files have the greatest
+## variance. this isn't super useful -- if the variance is too high on any of
+## them, you should increase the number of rows sampled per file or increase the
+## number of comparison runs
+CytoTools::plot_pairwise_comparison(
+    emd_variance_fromfile,
+    ## don't do any scaling as with our distance matrices
+    is_dist = FALSE,
+    col = color_palette)
 
 
 ### MEM analysis

@@ -131,41 +131,70 @@ check_channel_switches <- function (frames) {
 asinh_transform <- function (x) { asinh(x / 5) }
 
 
-### Analyze hierarchies of populations in a dataset.
+### Analyze populations in a dataset.
 
-emd_compute_row <- function (i, n, measures, output, clust, num_cores) {
-    ## populate result vector and return
-    result <- vector('double', n)
-    i_wpp <- measures[[i]]
-    if (i > 1) {
-        for (j in 1:(i - 1)) {
-            result[j] <- output[j, i]
-        }
-    }
-    result[i] <- 0
-    if (i < n) {
-        col_range <- (i + 1):n
-        msg("computing columns %s:%s on %s workers", i + 1, n, num_cores)
-        ## TODO: see ?parLapply and see if there's an alternative approach
-        ## which would be even faster
-        ## NOTE: assignment with -> at bottom!
-        parallel::parLapply(clust, col_range, function (j) {
-            ## lapply(col_range, function (j) {
-            j_wpp <- measures[[j]]
-            ## TODO: allow controlling parameters of this calculation!
-            col_time <- system.time(
-                gcFirst = FALSE,
-                cur_emd <- transport::wasserstein(
+compute_pairwise_emd_trials <- function (matrices, clust,
+                                         downsample_rows, comparison_runs,
+                                         verbose_timing) {
+    n <- length(matrices)
+    msg("starting pairwise emd on %s populations...", n)
+    lapply(1:n, function (i) {
+        final_col <- as.integer(n - i)
+        msg("computing row %s/%s, requiring column(s) %s:%s",
+            i, n, 1, final_col)
+        i_mat <- matrices[[i]]
+        cols <- safe_int_seq(1L, final_col)
+        parallel::parLapply(clust, cols, function (j) {
+            this_pid <- Sys.getpid()
+            j_mat <- matrices[[n - j + 1]]
+            lapply(1:comparison_runs, function (r) {
+                i_wpp <- sample(1:nrow(i_mat), downsample_rows) %>%
+                    i_mat[.,] %>% transport::wpp(rep(1, downsample_rows))
+                j_wpp <- sample(1:nrow(j_mat), downsample_rows) %>%
+                    j_mat[.,] %>% transport::wpp(rep(1, downsample_rows))
+                single_entry <- timed_execute(transport::wasserstein(
                     i_wpp, j_wpp, control = transport::trcontrol(
-                        method = "shortsimplex", a = i_wpp, b = j_wpp)))
-            ## can't use msg() here because within worker
-            message(sprintf("column %s took %s sec on worker id %s",
-                            j, round(col_time[3], 3), Sys.getpid()))
-            cur_emd
-        }) %>% unlist -> result[col_range]
+                        a = i_wpp, b = j_wpp, method = "shortsimplex")))
+                if (verbose_timing) {
+                    CytoTools::msg(paste(
+                        "run %s/%s for row %s/%s, column %s/%s",
+                        "on worker %s took %s sec"),
+                        r, comparison_runs, i, n, j, length(cols),
+                        this_pid, single_entry$time)
+                }
+                single_entry$value
+            }) %>% unlist
+        })
+    })
+}
+
+summarize_computed_trials <- function (fun, trials, nm) {
+    stopifnot(is.function(fun))
+    n <- length(trials)
+    result <- matrix(double(n * n), n, n, dimnames = list(nm, rev(nm)))
+    for (i in 1:n) {
+        next_cols <- result[rev(safe_int_seq(1L, as.integer(i - 1))),
+                            (n - i + 1)]
+        result[i,] <- lapply(trials[[i]], fun) %>% unlist %>% c(0, next_cols)
     }
     result
 }
+
+#' @title ?
+#'
+#' @description ?
+#'
+#' @export
+#'
+emd_downsample_rows_default <- 1000L
+#' @title ?
+#'
+#' @description ?
+#'
+#' @export
+#' @rdname emd_downsample_rows_default
+#'
+emd_comparison_runs_default <- 10L
 
 
 #' @title Compute pairwise EMD of a set of datasets in a viSNE analysis.
@@ -190,34 +219,28 @@ emd_compute_row <- function (i, n, measures, output, clust, num_cores) {
 #'
 #' @export
 #'
-pairwise_emd <- function (tsne_matrices) {
+pairwise_emd <- function (tsne_matrices,
+                          downsample_rows = emd_downsample_rows_default,
+                          comparison_runs = emd_comparison_runs_default,
+                          summary_funs = list(mean = mean,
+                                              variance = var),
+                          parallel_cores = parallel::detectCores(),
+                          verbose_timing = FALSE) {
+    stopifnot(is_counting_num(downsample_rows),
+              is_counting_num(comparison_runs),
+              is_counting_num(parallel_cores))
     nm <- get_names(tsne_matrices)
-    n <- length(tsne_matrices)
-    measures <- lapply(tsne_matrices, function (mat) {
-        transport::wpp(mat, rep(1, dim(mat)[1]))
-    })
-    output <- matrix(double(n * n), n, n, dimnames = list(nm, nm))
-    msg("starting pairwise emd on %s populations...", n)
-    num_cores <- parallel::detectCores()
     ## NOTE: outfile = "" goes to console, EXCEPT in Rgui on Windows!
-    clust <- parallel::makeCluster(num_cores, outfile = "")
-    time_tot <- system.time(
-        gcFirst = FALSE,
-        tryCatch(finally = parallel::stopCluster(clust), {
-            for (i in 1:n) {
-                msg("row %s/%s", i, n)
-                row_time <- system.time(
-                    gcFirst = FALSE,
-                    output[i,] <- emd_compute_row(
-                        i, n, measures, output, clust, num_cores))
-                msg("row %s/%s took %s seconds to compute %s columns",
-                    i, n, round(row_time[3], 3), (n - i))
-            }
-        }))
-    msg("pairwise emd on %s populations took %s seconds",
-        n, round(time_tot[3], 3))
-    ## so diagonal is as in a normal distance matrix
-    output[,ncol(output):1] %>% t
+    clust <- parallel::makeCluster(parallel_cores, outfile = "")
+    computed_trials <- tryCatch(
+        finally = parallel::stopCluster(clust),
+        compute_pairwise_emd_trials(
+            tsne_matrices, clust, downsample_rows, comparison_runs,
+            verbose_timing))
+    c(list(downsample_rows = downsample_rows,
+           comparison_runs = comparison_runs),
+      lapply(summary_funs, (. %>% summarize_computed_trials(
+          computed_trials, nm))))
 }
 
 normal_iqr <- function (x, ...) {
@@ -314,6 +337,7 @@ calc_mem <- function (pop_list, ref,
 #'
 plot_pairwise_comparison <- function (mat,
                                       is_dist = TRUE,
+                                      no_rotate = FALSE,
                                       with_dendrograms = FALSE,
                                       ...) {
     opts <- merge_named_lists(

@@ -4,7 +4,8 @@
 \alias{plot_pairwise_comparison}
 \title{Plot Pairwise Comparisons of Cytometry Datasets}
 \usage{
-plot_pairwise_comparison(mat, is_dist = TRUE, with_dendrograms = FALSE, ...)
+plot_pairwise_comparison(mat, is_dist = TRUE, no_rotate = FALSE,
+  with_dendrograms = FALSE, ...)
 }
 \arguments{
 \item{mat}{A comparison matrix produced by \code{\link{pairwise_emd}} or

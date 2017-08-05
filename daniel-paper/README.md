@@ -19,3 +19,6 @@ the current version of the paper is in the doc in this repo
     - find f-measure *from* cluster *to* that population
     - take mean f-measure for all clusters to get clustering quality
     - rest is in paper
+
+# linx
+- https://en.wikipedia.org/wiki/Ensemble_learning
