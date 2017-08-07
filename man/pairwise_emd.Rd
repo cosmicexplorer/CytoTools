@@ -14,21 +14,21 @@ pairwise_emd(tsne_matrices, downsample_rows = emd_downsample_rows_default,
 }
 \value{
 ? The resultant matrix of EMD between all pairs of input files's
-    viSNE axis values. Row and column names are set to the input file paths.
+viSNE axis values. Row and column names are set to the input file paths.
 }
 \description{
 ? \code{pairwise_emd} computes the Earth Mover's Distance (EMD)
-    between the viSNE axes of each pair of data frames given, and writes the
-    resultant double-precision matrix to a CSV file.
+between the viSNE axes of each pair of data frames given, and writes the
+resultant double-precision matrix to a CSV file.
 }
 \details{
 If \code{length(frames) == n} for some positive integer \code{n}, a
-    diagonal n x n double-precision floating-point matrix \code{mat} is
-    created to represent the EMD between each pair of datasets at indices
-    \code{i} and \code{j}, where \code{mat[i,j] == mat[j,i]} and
-    \code{mat[i,j]} represents the EMD between the two.
+diagonal n x n double-precision floating-point matrix \code{mat} is
+created to represent the EMD between each pair of datasets at indices
+\code{i} and \code{j}, where \code{mat[i,j] == mat[j,i]} and
+\code{mat[i,j]} represents the EMD between the two.
 }
 \seealso{
-\code{\link{transport::wasserstein}} for the underlying EMD
-    implementation.
+\code{\link[transport:wasserstein]{transport::wasserstein()}} for the underlying EMD
+implementation.
 }

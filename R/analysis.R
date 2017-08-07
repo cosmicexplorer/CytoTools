@@ -4,38 +4,58 @@
 
 ### Clean fcs data.
 
-## FIXME: does read.FCS read in anything except double columns?
-#' @description ?
-#'
-#' @param vec ?
-#'
-#' @return ?
-#'
-#' @export
-#' @rdname non_pheno_channel_content_predicates
-#'
-is_non_floating_point <- function (vec) {
-    (!is.vector(vec, mode = 'double')) ||
-        all(vec == as.integer(vec))
+extract_pheno_channels <- function (channel_names, pop, pop_desc) {
+    ## we're matching channel names by fixed strings, and throw if there are
+    ## multiple matches for a channel name. if one channel name is a substring
+    ## of another (e.g. CD45RA and CD45), and we search for CD45 first, we'll
+    ## find results for both. narrow columns to matches for longer strings first
+    longer_first <- channel_names %>% sort %>% rev %T>% {
+        stopifnot(anyDuplicated(.) == 0)
+    }
+    with_canonical_channels <- Reduce(
+        x = longer_first,
+        init = rep(colnames(pop)),
+        f = function (cols, channel) {
+            matched <- grep(channel, cols, fixed = TRUE)
+            if (length(matched) == 0) {
+                stop(sprintf(
+                    "no match was found for channel '%s' in population '%s'",
+                    channel, pop_desc))
+            } else if (length(matched) > 1) {
+                stop(sprintf(paste(
+                    "more than one match was found for channel '%s'",
+                    "in population '%s': [%s]"),
+                    channel, pop_desc,
+                    paste("\"", cols[matched], "\"",
+                          sep = "", collapse = ", ")))
+            }
+            cols[matched] <- channel
+            cols
+        })
+    with_canonical_channels[,channel_names]
 }
-#' @title ?
-#'
-#' @description ?
-#'
-#' @export
-#'
-non_pheno_channel_content_predicates <- c(is_non_floating_point)
 
-#' @title ?
+## TODO: get a citation for asinh_transform and justify it. get alternatives and
+## comparisons
+#' @title Hyperbolic Arcsin Transform for Cytometry Data
 #'
-#' @description ?
+#' @description `asinh_transform` applies the standard transform applied to
+#'     channels of CyToF or flow cytometry data when comparing channels
+#'     directly.
+#'
+#' @param x vector to transform
+#'
+#' @return The transformed vector.
+#'
+#' @details Performs the `asinh(x / 5)` transformation to the input data.
+#'
+#' @references Garner, Duane L., et al. "Fluorometric assessments of
+#'     mitochondrial function and viability in cryopreserved bovine
+#'     spermatozoa." Biology of Reproduction 57.6 (1997): 1401-1406.
 #'
 #' @export
 #'
-non_pheno_channel_name_patterns <- list(
-    "^[[:digit:]]+$" = NA,
-    "[sS][nN][eE]" = NA,
-    "\\-[0-9]+$" = "")
+asinh_transform <- function (x) { asinh(x / 5) }
 
 #' @title ?
 #'
@@ -52,83 +72,34 @@ non_pheno_channel_name_patterns <- list(
 #'
 #' @export
 #'
-normalize_pheno_channels_dataset <- function
-(
-    pop_list,
-    ref = NULL,
-    transform_fun = asinh_transform,
-    content_filter = non_pheno_channel_content_predicates,
-    modify_colnames_fun = toupper,
-    channel_name_ops = non_pheno_channel_name_patterns
-) {
-    gen_modify_fun <- function (pop, desc) {
-        by_content <- Reduce(
-            init = pop, x = content_filter,
-            f = function (df, pred) select_if(df, Negate(pred)))
-        colnames(by_content) %>%
-            modify_colnames_fun %>%
-            replace_matches(channel_name_ops) %>%
-            replace_colnames(by_content, desc, .) %>%
+normalize_pheno_channels_dataset <- function (pheno_channel_names, pop_list,
+                                              ref = NULL,
+                                              transform_fun = asinh_transform) {
+    stopifnot(is.vector(pheno_channel_names, 'character'),
+              is.list(pop_list),
+              lapply(pop_list, is.data.frame) %>% unlist,
+              (is.null(ref) || is.data.frame(ref)),
+              is.function(transform_fun))
+    pop_names <- names(pop_list) %>% {
+        if (!is.null(.)) { . } else { as.character(1:length(pop_list)) }
+    }
+    pops_correct_channels <- lapply(1:length(pop_names), function (i) {
+        extract_pheno_channels(pheno_channel_names,
+                               pop_list[[i]], pop_names[[i]]) %>%
             as.matrix %>%
             transform_fun
-    }
-    stopifnot(is.list(pop_list))
-    pop_names <- names(pop_list)
-    indiv_normed_channel_pops <- lapply(1:length(pop_list), function (i) {
-        gen_modify_fun(pop_list[[i]], pop_names[[i]])
-    }) %>% set_names(pop_names)
-    shared_channels <- indiv_normed_channel_pops %>%
-        lapply(colnames) %>% Reduce(f = intersect)
-    if (!is.null(ref)) {
-        norm_ref_pop <- gen_modify_fun(ref, "REF")
-        shared_channels <- intersect(shared_channels, colnames(norm_ref_pop))
-    } else {
-        norm_ref_pop <- indiv_normed_channel_pops %>%
-            lapply((. %>% .[,shared_channels])) %>%
-            Reduce(rbind)
-    }
-    list(shared_channels = shared_channels,
-         ref = norm_ref_pop[,shared_channels],
-         pop_list = indiv_normed_channel_pops %>%
-             lapply((. %>% .[,shared_channels])))
+    })
+    ref_correct_channels <- if (!is.null(ref)) {
+                                extract_pheno_channels(pheno_channel_names,
+                                                       ref, "REF") %>%
+                                    as.matrix %>%
+                                    transform_fun
+                            } else {
+                                Reduce(x = pops_correct_channels, f = rbind)
+                            }
+    list(pop_list = pops_correct_channels,
+         ref = ref_correct_channels)
 }
-
-## TODO: try to find non-marker columns with "spread" of data as heuristic
-## (e.g. viSNE columns are between +/-30) and throw if any found
-check_marker_spelling <- function (frames
-                                 ## , maxdist, norm = tolower
-                                   ) {
-    ## cols_by_frame <- lapply(frames, colnames)
-    ## shared_cols <- Reduce(f = intersect, x = cols_by_frame)
-    ## lapply(cols_by_frame, function (cur_cols) {
-    ##     cur_cols
-    ## })
-}
-
-check_channel_switches <- function (frames) {
-}
-
-## TODO: get a citation for asinh_transform and justify it. get alternatives and
-## comparisons
-#' @title Hyperbolic Arcsin Transform for Cytometry Data
-#'
-#' @description \code{asinh_transform} applies the standard transform applied to
-#'     channels of CyToF or flow cytometry data when comparing channels
-#'     directly.
-#'
-#' @param x vector to transform
-#'
-#' @return The transformed vector.
-#'
-#' @details Performs the \code{asinh(x / 5)} transformation to the input data.
-#'
-#' @references Garner, Duane L., et al. "Fluorometric assessments of
-#'     mitochondrial function and viability in cryopreserved bovine
-#'     spermatozoa." Biology of Reproduction 57.6 (1997): 1401-1406.
-#'
-#' @export
-#'
-asinh_transform <- function (x) { asinh(x / 5) }
 
 
 ### Analyze populations in a dataset.
@@ -153,17 +124,17 @@ compute_pairwise_emd_trials <- function (matrices, clust,
                 j_wpp <- sample(1:nrow(j_mat), downsample_rows) %>%
                     j_mat[.,] %>% transport::wpp(rep(1, downsample_rows))
                 single_entry <- CytoTools::timed_execute(transport::wasserstein(
-                        i_wpp, j_wpp, control = transport::trcontrol(
-                            a = i_wpp, b = j_wpp, method = "shortsimplex")),
-                        ## weird that this is necessary when using timed_execute
-                        ## inside a worker
-                        env = environment())
+                    i_wpp, j_wpp, control = transport::trcontrol(
+                        a = i_wpp, b = j_wpp, method = "shortsimplex")),
+                    ## weird that this is necessary when using timed_execute
+                    ## inside a worker
+                    env = environment())
                 if (verbose_timing) {
-                    CytoTools::msg(paste(
+                    message(sprintf(paste(
                         "run %s/%s for row %s/%s, column %s/%s",
                         "on worker %s took %s sec"),
                         r, comparison_runs, i, n, j, length(cols),
-                        this_pid, single_entry$time)
+                        this_pid, single_entry$time))
                 }
                 single_entry$value
             }) %>% unlist
@@ -202,7 +173,7 @@ emd_comparison_runs_default <- 10L
 
 #' @title Compute pairwise EMD of a set of datasets in a viSNE analysis.
 #'
-#' @description ? \code{pairwise_emd} computes the Earth Mover's Distance (EMD)
+#' @description ? `pairwise_emd` computes the Earth Mover's Distance (EMD)
 #'     between the viSNE axes of each pair of data frames given, and writes the
 #'     resultant double-precision matrix to a CSV file.
 #'
@@ -211,13 +182,13 @@ emd_comparison_runs_default <- 10L
 #' @return ? The resultant matrix of EMD between all pairs of input files's
 #'     viSNE axis values. Row and column names are set to the input file paths.
 #'
-#' @details If \code{length(frames) == n} for some positive integer \code{n}, a
-#'     diagonal n x n double-precision floating-point matrix \code{mat} is
+#' @details If `length(frames) == n` for some positive integer `n`, a
+#'     diagonal n x n double-precision floating-point matrix `mat` is
 #'     created to represent the EMD between each pair of datasets at indices
-#'     \code{i} and \code{j}, where \code{mat[i,j] == mat[j,i]} and
-#'     \code{mat[i,j]} represents the EMD between the two.
+#'     `i` and `j`, where `mat[i,j] == mat[j,i]` and
+#'     `mat[i,j]` represents the EMD between the two.
 #'
-#' @seealso \code{\link{transport::wasserstein}} for the underlying EMD
+#' @seealso [transport::wasserstein()] for the underlying EMD
 #'     implementation.
 #'
 #' @export
@@ -263,7 +234,7 @@ mem_iqr_threshold_default <- 0.5
 
 #' @title ?
 #'
-#' @description
+#' @description ?
 #'
 #' @param pop_list ?
 #' @param ref ?
@@ -322,42 +293,40 @@ calc_mem <- function (pop_list, ref,
 
 #' @title Plot Pairwise Comparisons of Cytometry Datasets
 #'
-#' @description \code{plot_pairwise_comparison} plots a heatmap of a pairwise
-#'     comparison of datasets with \code{\link{gplots::heatmap.2}}.
+#' @description `plot_pairwise_comparison` plots a heatmap of a pairwise
+#'     comparison of datasets with [gplots::heatmap.2()].
 #'
-#' @param mat A comparison matrix produced by \code{\link{pairwise_emd}} or
-#'     \code{\link{pairwise_mem_rmsd}}.
+#' @param mat A comparison matrix produced by [pairwise_emd()] or
+#'     [pairwise_mem_rmsd()].
 #' @param is_dist ?
 #' @param with_dendrograms ?
 #' @param ... ?
 #'
-#' @seealso \code{\link{gplots::heatmap.2}} for the underlying plotting
-#'     function, and \code{\link{grDevices::colorRampPalette}} for color palette
-#'     generation. \code{\link{pairwise_emd}} or \code{\link{pairwise_mem_rmsd}}
-#'     should be used to generate \code{matrix_file}.
+#' @seealso [gplots::heatmap.2()] for the underlying plotting
+#'     function, and [grDevices::colorRampPalette()] for color palette
+#'     generation. [pairwise_emd()] or [pairwise_mem_rmsd()]
+#'     should be used to generate `matrix_file`.
 #'
 #' @export
 #'
 plot_pairwise_comparison <- function (mat,
-                                      is_dist = TRUE,
-                                      no_rotate = FALSE,
+                                      pcnt_similarity_scale = TRUE,
                                       with_dendrograms = FALSE,
                                       ...) {
     opts <- merge_named_lists(
         list(...),
-        list(trace = "none", scale = "none",
+        list(trace = "none", scale = "none", density.info = "histogram",
              cexRow = .5, cexCol = .5, margin = c(10, 10)))
-    if (is_dist) {
+    if (pcnt_similarity_scale) {
         dims <- dim(mat)
-        stopifnot(dims[1] == dims[2],
-                  all(mat >= 0))
+        stopifnot(
+            length(dims) == 2,
+            dims[1] == dims[2],
+            all(mat >= 0))
         ## dist is >= 0 -- this scales it from 0 - 100, where 0 is max dist, 100
         ## is 0 dist
         mat_greatest <- mat %>% max
         mat <- 100 - (mat / mat_greatest * 100)
-        opts <- merge_named_lists(opts, list(
-            density.info = "histogram",
-            symm = TRUE))
     }
     if (!with_dendrograms) {
         opts <- merge_named_lists(opts, list(

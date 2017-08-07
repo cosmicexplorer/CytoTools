@@ -8,161 +8,26 @@
 
 ### Read/write different representations of flow data.
 
-#' @title ?
+#' @title List Files in a Directory
 #'
-#' @description ?
+#' @description List all files in a directory without including other
+#'     directories and using the full filenames.
 #'
-#' @param path ?
+#' @param path string, the directory to read.
 #'
-#' @return ?
-#'
-#' @export
-#'
-fcs_file_paths <- function (path = ".", pattern = "\\.fcs$") {
-    list.files(path = path, pattern = pattern,
-               ignore.case = TRUE, all.files = TRUE, full.names = TRUE,
-               recursive = FALSE, no.. = TRUE)
-}
-
-sort_component_helper <- function (splits, indices, orders) {
-    n <- length(indices)
-    if (n == 0) {
-        return(indices)
-    }
-    empty_p <- lapply(indices, function (i) length(splits[[i]]) == 0) %>% unlist
-    if (all(empty_p)) {
-        return(indices)
-    }
-    nonempty_inds <- indices[!empty_p]
-    next_orders <- orders[-1]
-    next_splits <- lapply(splits, function (cur) cur[-1])
-    cur_splits <- lapply(indices, function (i) splits[[i]][1]) %>% unlist
-    recognized <- if (length(orders) > 0) { orders[[1]] } else { character() }
-    stopifnot(!any(duplicated(recognized)))
-    lvls <- cur_splits[!(cur_splits %in% recognized)] %>% sort %>% unique %>% {
-        as.character(c(recognized, .))
-    }
-    nonempty_reduced <- Reduce(
-        x = lvls,
-        init = list(result = list(),
-                    remaining = nonempty_inds),
-        f = function (cur, level) {
-            if (length(cur$remaining) == 0) {
-                return(cur)
-            }
-            matching <- lapply(cur$remaining, function (i) {
-                splits[[i]][1] == level
-            }) %>% unlist
-            matched_sorted <- sort_component_helper(
-                next_splits, cur$remaining[matching], next_orders)
-            list(result = c(cur$result, matched_sorted),
-                 remaining = cur$remaining[!matching])
-        })
-    stopifnot(length(nonempty_reduced$remaining) == 0)
-    c(indices[empty_p], nonempty_reduced$result) %>% unlist
-}
-
-
-#' @title Sort strings by splitting and ordering.
-#'
-#' @description \code{sort_by_component} splits strings into lists of
-#'     components, then orders them lexicographically by the value of each
-#'     succeeding component.
-#'
-#' @param strs character vector of strings to be sorted.
-#' @param split_by character vector used to split \code{strs} into
-#'     components. This is interpreted as either fixed strings or PCRE regular
-#'     expressions according to \code{fixed}.
-#' @param orders list of character vectors indicating a lexicographic ordering
-#'     for each component.
-#' @param fixed logical. How to interpret \code{split_by}. If \code{TRUE},
-#'     \code{split_by} is treated as fixed strings, otherwise as PCRE regular
-#'     expressions.
-#' @param value logical. Whether to return the sorted strings or the permutation
-#'     of the input.
-#'
-#' @return If \code{value = TRUE} return the sorted character vector,
-#'     otherwise an integer vector which represents the permutation of
-#'     \code{strs} which produces the sorted result (as in \code{\link{order}}).
-#'
-#' @details \code{\link{strsplit}} is used to split each string of \code{strs}
-#'     into a vector of substrings using the elements of
-#'     \code{split_by}. \code{split_by} is interpreted as either fixed strings
-#'     or PCRE regular expressions according to \code{fixed}.
-#'
-#'     Splitting a string produces a vector of substrings which occur between
-#'     each occurrence of each splitting string or regular expression. For
-#'     example, splitting the string \code{"A:B:C"} by \code{":"} produces the
-#'     vector \code{c("A", "B", "C")}, which we call its \emph{components}.
-#'
-#'     Note that \code{split_by = ""} or \code{split_by = character(0)} splits
-#'     each string of \code{strs} into their individual characters as
-#'     components.
-#'
-#'     Each succeeding character vector in \code{orders} is used to sort the
-#'     component at the corresponding index in a lexicographic order. This means
-#'     that the character vector at index 1 of \code{orders} is used to sort the
-#'     first component of each input string, index 2 sorts the second, and so
-#'     on, and that the sorting of earlier components takes precedence over
-#'     later components.
-#'
-#'     The character vectors in \code{orders} are used to sort each component
-#'     \code{c} of each string \code{s} at a given index \code{i} as
-#'     follows. The components which match \emph{exactly} some element of the
-#'     vector \code{v} at index \code{i} of \code{orders} are sorted in the
-#'     order given by \code{v}, while the components which do not show up in
-#'     \code{v} are sorted using \code{\link{order}}. The components which
-#'     \emph{do} show up in \code{v} are then sorted before the components which
-#'     do not.
-#'
-#'     Note that this function will throw an exception if \code{v}
-#'     contains any duplicates. In addition, if \code{length(orders) == n} for
-#'     some integer \code{n}, all components at indices greater than \code{n}
-#'     are sorted purely by their relative string value, but still only compared
-#'     to other components at the same index.
-#'
-#'     Lexicographical (sometimes called hierarchical) sorting means that if two
-#'     strings are split into the exact same components up to the index
-#'     \code{k}, then differ at index \code{k + 1}, then their relative order is
-#'     determined by the ordering of component \code{k + 1} of the two
-#'     strings. If there is no component at which strings differ in sorting,
-#'     they have no relative order, and they may be sorted either way. This
-#'     means that this function does not perform a \emph{stable sort}.
-#'
-#'     If one string \code{s_1} is split into \code{k} components and another
-#'     string \code{s_2} splits into more than \code{k} components, and the two
-#'     strings have equal components up to index \code{k}, then \code{s_1} is
-#'     sorted before \code{s_2}.
-#'
-#' @seealso \code{\link{strsplit}} is used to split each input
-#'     string. \code{\link{order}} is a function which returns a permutation of
-#'     the input as an integer vector.
+#' @return Character vector containing paths to all files located at the
+#'     specified `path`.
 #'
 #' @examples
-#' data_files <- c("MB004_6m_panel2.fcs", "MB004_3wk_panel2.fcs",
-#'                 "MB004_12wk_panel2.fcs", "MB004_pre_panel2.fcs",
-#'                 "MB005_12wk_panel2.fcs")
-#' sort_by_component(data_files,
-#'                   split_by = c("_"),
-#'                   orders = list(c("MB005"), c("pre", "3wk", "12wk", "6m")))
-#' ## [1] "MB005_12wk_panel2.fcs" "MB004_pre_panel2.fcs"
-#' ## [3] "MB004_3wk_panel2.fcs"  "MB004_12wk_panel2.fcs" "MB004_6m_panel2.fcs"
+#' ## list all files in the current directory
+#' list_dir_files(".")
 #'
 #' @export
 #'
-sort_by_component <- function (strs, split_by, orders = list(),
-                               fixed = TRUE, value = TRUE) {
-    splits <- if (fixed) {
-                  strsplit(strs, split_by, fixed = TRUE)
-              } else {
-                  strsplit(strs, split_by, perl = TRUE)
-              }
-    indices <- sort_component_helper(splits, 1:length(splits), orders)
-    if (value) {
-        strs[indices]
-    } else {
-        indices
-    }
+list_dir_files <- function (path) {
+    list.files(path = path, pattern = NULL,
+               all.files = TRUE, full.names = TRUE, recursive = FALSE,
+               include.dirs = FALSE, no.. = TRUE)
 }
 
 read_fcs_flowFrame <- function (fname) {
@@ -189,38 +54,45 @@ read_text_cyto_frame <- function (fname, allow_skip, ...) {
 
 #' @title Read a CyToF file.
 #'
-#' @description \code{read_cyto_file} reads a file containing CyToF data into a
+#' @description `read_cyto_file` reads a file containing CyToF data into a
 #'     data frame.
 #'
 #' @param fname character vector of length one. The filename to read in.
-#' @param rx_replace named char vector (which may be empty, or NULL), where
-#'     names are regular expressions ("regexes") to match against CyToF marker
-#'     names, and values are replacements.
 #' @param allow_skip logical indicating whether to allow reading text files with
 #'     one blank line at the top.
 #'
 #' @details Filenames can be binary FCS files or text files with headers. Files
 #'     with extension ".fcs" will be read as FCS files with
-#'     \code{\link{flowCore::read.FCS}}. ".txt" files will be read as TSV, while
+#'     [flowCore::read.FCS()]. ".txt" files will be read as TSV, while
 #'     ".csv" files will be read as CSV. Extensions are interpreted
 #'     case-insensitively, but files with unrecognized extensions will trigger
 #'     an exception.
 #'
 #'     If the file is a text file (.txt or .csv) and starts with a blank line,
 #'     this function will recognize that and skip the initial blank line, unless
-#'     \code{allow_skip = FALSE}. This handles a known quirk in many real-world
+#'     `allow_skip = FALSE`. This handles a known quirk in many real-world
 #'     datasets.
 #'
-#' @return \code{\link{read_cyto_file}} returns a data frame containing the
-#'     content of the specified data file. Only channel values are retained --
-#'     any metadata or parameters are dropped.
+#'     The [flowCore::exprs()] function is used when turning an FCS
+#'     file into a data frame, which drops metadata.
 #'
-#' @seealso \code{\link{gsub}} for basic examples of regex replacement, while
-#'     \code{\link{replace_matches}} is the function called to perform
-#'     these replacements.
+#' @return [read_cyto_file()] returns a data frame containing the
+#'     content of the specified data file.
 #'
-#'     \code{\link{flowCore::read.FCS}} is used to read FCS files, while
-#'     \code{\link{read.table}} is used to read TSV and CSV files.
+#' @seealso [read.table()] is used to read TSV and CSV files.
+#'     [flowCore::read.FCS()] and [flowCore::exprs()] are
+#'     used to read FCS files.
+#'
+#' @examples
+#' ## read the file "iPSCs.fcs" in the current directory into `fcs_df`
+#' fcs_df <- read_cyto_file("./iPSCs.fcs")
+#'
+#' fcs_df[1:4,c(1:2,11:12)]
+#' ##   Time Cell_length        140   ICOS-141
+#' ## 1   45          23 -1.0545764 -0.3860820
+#' ## 2  442          34 -0.2881902 -1.1049303
+#' ## 3  480          23 -1.0798522 -0.4776470
+#' ## 4  599          38 -0.4168313 -0.6641003
 #'
 #' @export
 #'
@@ -235,4 +107,74 @@ read_cyto_file <- function (fname, allow_skip = TRUE) {
         txt = read_text_cyto_frame(fname, allow_skip, sep = "\t"),
         stop(sprintf("unrecognized extension '%s' for file '%s'",
                      ext, fname)))
+}
+
+#' @title Scan a Directory for CytoF Files, Sort Them, and Read Them Into Memory
+#'
+#' @description Read all files with the given extensions in the current
+#'     directory into a named list of data frames.
+#'
+#' @inheritParams list_dir_files
+#' @param extensions character vector containing file extensions to process.
+#' @inheritParams sort_by_component
+#' @inheritParams read_cyto_file
+#'
+#' @details The directory specified by `path` is scanned for files with any of
+#'     the given `extensions`. The elements of `split_by` are interpreted as
+#'     *fixed strings* to split the resulting filenames, and `orders` are used
+#'     to lexicographically sort them with [sort_by_component()]. The resulting
+#'     sorted character vector of filenames is then used as the [names()] for a
+#'     named list, which is then populated with each file's contents using
+#'     [read_cyto_file()].
+#'
+#' @return Named list of data frames, where each name is the filename from which
+#'     the value at that index is read.
+#'
+#' @seealso [list_dir_files()] is used to scan the directory,
+#'     [sort_by_component()] sorts file paths, and [read_cyto_file()] is called
+#'     to interpret each file's contents into a data frame.
+#'
+#' @examples
+#' sorted_cytof_data <- CytoTools::read_files_sorted(
+#'    path = ".",
+#'    extensions = c("fcs"),
+#'    split_by = c("_", " "),
+#'    orders = list(c(), c("pre", "3wk", "12wk", "6m")))
+#'
+#' length(sorted_cytof_data)
+#' ## [1] 141
+#' is.data.frame(sorted_cytof_data[[1]])
+#' ## [1] TRUE
+#'
+#' lapply(sorted_cytof_data[1:2], function (fcs_df) fcs_df[1:4,c(1:2,5:6)])
+#' ## $`./29_RCCPBMC_panel4_PD-1+ CD4.fcs`
+#' ##    Time Cell_length        140  ICOS-141
+#' ## 1 19648          24  0.2647168  1.667185
+#' ## 2 20933          17  1.0358380  9.964522
+#' ## 3 27051          24 -0.8677309 17.684467
+#' ## 4 28387          37  1.2802999 14.215277
+#' ##
+#' ## $`./29_RCCPBMC_panel4_PD-1+ CD8.fcs`
+#' ##    Time Cell_length        140    ICOS-141
+#' ## 1 29018          22 -0.9847549 -0.51542509
+#' ## 2 30535          31 -0.5153459 -0.65859687
+#' ## 3 33917          19 -1.0417140  3.72425652
+#' ## 4 42929          27  1.7391516  0.03845136
+#'
+#' @export
+#'
+read_files_sorted <- function (path = ".",
+                               extensions = c("fcs"),
+                               split_by = c("_", " "),
+                               orders = list(),
+                               allow_skip = TRUE) {
+    desired_files <- list_dir_files(path) %>%
+        .[lapply(., tools::file_ext) %in% extensions]
+    specified_order <- desired_files %>% lapply(basename) %>% unlist %>%
+        sort_by_component(split_by = split_by, orders = orders,
+                          fixed = TRUE, value = FALSE)
+    sorted_files <- desired_files[specified_order]
+    sorted_files %>%
+        lapply((. %>% read_cyto_file(allow_skip = allow_skip))) %>%
+        set_names(sorted_files)
 }

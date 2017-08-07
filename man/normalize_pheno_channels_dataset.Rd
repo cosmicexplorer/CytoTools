@@ -4,11 +4,8 @@
 \alias{normalize_pheno_channels_dataset}
 \title{?}
 \usage{
-normalize_pheno_channels_dataset(pop_list, ref = NULL,
-  transform_fun = asinh_transform,
-  content_filter = non_pheno_channel_content_predicates,
-  modify_colnames_fun = toupper,
-  channel_name_ops = non_pheno_channel_name_patterns)
+normalize_pheno_channels_dataset(pheno_channel_names, pop_list, ref = NULL,
+  transform_fun = asinh_transform)
 }
 \arguments{
 \item{pop_list}{?}

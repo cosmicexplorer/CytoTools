@@ -17,15 +17,32 @@ is_counting_num <- function (x, allow_zero = FALSE) {
         ((x > 0) || (allow_zero && (x == 0)))
 }
 
-#' @title ?
+#' @title Execute Expression and Measure Execution Time
 #'
-#' @description ?
+#' @description Execute an expression and measure the time taken, returning
+#'     both.
 #'
-#' @param expr ?
-#' @param drop_time ?
-#' @param digits ?
-#' @param time_type ?
-#' @param env ?
+#' @param expr R expression to execute.
+#' @param digits integer, number of digits to round time to.
+#' @param time_type integer vector indexing into the result of [system.time()],
+#'     defaulting to "wall clock time".
+#' @param env environment to execute `expr` in, defaulting to the calling
+#'     environment.
+#'
+#' @return Named list with `time` rounded to `digits` in seconds, `value` as the
+#'     result of evaluating `expr`.
+#'
+#' @seealso [system.time()] is called to time the execution of `expr`.
+#'
+#' @examples
+#' b <- 3
+#' timed_execute({Sys.sleep(.5); b + 2})
+#' ## $time
+#' ## elapsed
+#' ##     0.5
+#' ##
+#' ## $value
+#' ## [1] 5
 #'
 #' @export
 #'
@@ -57,19 +74,7 @@ get_names <- function (x, ...) {
     names(x) %T>% { stopifnot(check_names(., ...)) }
 }
 
-#' @title ?
-#'
-#' @description ?
-#'
-#' @param strs ?
-#' @param replace_spec ?
-#'
-#' @return ?
-#'
-#' @details ?
-#'
-#' @export
-#'
+## TODO: is this used anywhere?
 replace_matches <- function (strs, replace_spec) {
     rx <- get_names(replace_spec)
     Reduce(x = 1:length(replace_spec), init = rep(strs), f = function (cur, i) {
@@ -106,14 +111,6 @@ replace_colnames <- function (df, desc, nm) {
     df[,nonna] %>% set_colnames(nm[nonna])
 }
 
-#' @title ?
-#'
-#' @description ?
-#'
-#' @param ... ?
-#'
-#' @export
-#'
 msg <- function (...) {
     message(sprintf(...))
 }
@@ -130,19 +127,9 @@ merge_named_lists <- function (a, b) {
     ret
 }
 
+## TODO: is this used anywhere?
 rotate_matrix_ccw <- function (m) { m[,ncol(m):1] %>% t }
 
-#' @title ?
-#'
-#' @description ?
-#'
-#' @param from ?
-#' @param to ?
-#'
-#' @return ?
-#'
-#' @export
-#'
 safe_int_seq <- function (from, to) {
     stopifnot(is_counting_num(from),
               is_counting_num(to, allow_zero = TRUE))

@@ -20,12 +20,12 @@ calc_mem(pop_list, ref, IQRthresh = mem_iqr_threshold_default,
 ?
 }
 \description{
-
+?
 }
 \details{
 ?
 }
 \references{
 Diggins, Kirsten E., et al. "Characterizing cell subsets using
-    marker enrichment modeling." Nature Methods 14.3 (2017): 275-278.
+marker enrichment modeling." Nature Methods 14.3 (2017): 275-278.
 }

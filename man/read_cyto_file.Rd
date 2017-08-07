@@ -11,38 +11,44 @@ read_cyto_file(fname, allow_skip = TRUE)
 
 \item{allow_skip}{logical indicating whether to allow reading text files with
 one blank line at the top.}
-
-\item{rx_replace}{named char vector (which may be empty, or NULL), where
-names are regular expressions ("regexes") to match against CyToF marker
-names, and values are replacements.}
 }
 \value{
-\code{\link{read_cyto_file}} returns a data frame containing the
-    content of the specified data file. Only channel values are retained --
-    any metadata or parameters are dropped.
+\code{\link[=read_cyto_file]{read_cyto_file()}} returns a data frame containing the
+content of the specified data file.
 }
 \description{
 \code{read_cyto_file} reads a file containing CyToF data into a
-    data frame.
+data frame.
 }
 \details{
 Filenames can be binary FCS files or text files with headers. Files
-    with extension ".fcs" will be read as FCS files with
-    \code{\link{flowCore::read.FCS}}. ".txt" files will be read as TSV, while
-    ".csv" files will be read as CSV. Extensions are interpreted
-    case-insensitively, but files with unrecognized extensions will trigger
-    an exception.
+with extension ".fcs" will be read as FCS files with
+\code{\link[flowCore:read.FCS]{flowCore::read.FCS()}}. ".txt" files will be read as TSV, while
+".csv" files will be read as CSV. Extensions are interpreted
+case-insensitively, but files with unrecognized extensions will trigger
+an exception.\preformatted{If the file is a text file (.txt or .csv) and starts with a blank line,
+this function will recognize that and skip the initial blank line, unless
+`allow_skip = FALSE`. This handles a known quirk in many real-world
+datasets.
 
-    If the file is a text file (.txt or .csv) and starts with a blank line,
-    this function will recognize that and skip the initial blank line, unless
-    \code{allow_skip = FALSE}. This handles a known quirk in many real-world
-    datasets.
+The [flowCore::exprs()] function is used when turning an FCS
+file into a data frame, which drops metadata.
+}
+}
+\examples{
+## read the file "iPSCs.fcs" in the current directory into `fcs_df`
+fcs_df <- read_cyto_file("./iPSCs.fcs")
+
+fcs_df[1:4,c(1:2,11:12)]
+##   Time Cell_length        140   ICOS-141
+## 1   45          23 -1.0545764 -0.3860820
+## 2  442          34 -0.2881902 -1.1049303
+## 3  480          23 -1.0798522 -0.4776470
+## 4  599          38 -0.4168313 -0.6641003
+
 }
 \seealso{
-\code{\link{gsub}} for basic examples of regex replacement, while
-    \code{\link{replace_matches}} is the function called to perform
-    these replacements.
-
-    \code{\link{flowCore::read.FCS}} is used to read FCS files, while
-    \code{\link{read.table}} is used to read TSV and CSV files.
+\code{\link[=read.table]{read.table()}} is used to read TSV and CSV files.
+\code{\link[flowCore:read.FCS]{flowCore::read.FCS()}} and \code{\link[flowCore:exprs]{flowCore::exprs()}} are
+used to read FCS files.
 }

@@ -2,21 +2,40 @@
 % Please edit documentation in R/util.R
 \name{timed_execute}
 \alias{timed_execute}
-\title{?}
+\title{Execute Expression and Measure Execution Time}
 \usage{
 timed_execute(expr, digits = 3, time_type = 3, env = parent.frame())
 }
 \arguments{
-\item{expr}{?}
+\item{expr}{R expression to execute.}
 
-\item{digits}{?}
+\item{digits}{integer, number of digits to round time to.}
 
-\item{time_type}{?}
+\item{time_type}{integer vector indexing into the result of \code{\link[=system.time]{system.time()}},
+defaulting to "wall clock time".}
 
-\item{env}{?}
-
-\item{drop_time}{?}
+\item{env}{environment to execute \code{expr} in, defaulting to the calling
+environment.}
+}
+\value{
+Named list with \code{time} rounded to \code{digits} in seconds, \code{value} as the
+result of evaluating \code{expr}.
 }
 \description{
-?
+Execute an expression and measure the time taken, returning
+both.
+}
+\examples{
+b <- 3
+timed_execute({Sys.sleep(.5); b + 2})
+## $time
+## elapsed
+##     0.5
+##
+## $value
+## [1] 5
+
+}
+\seealso{
+\code{\link[=system.time]{system.time()}} is called to time the execution of \code{expr}.
 }

@@ -4,26 +4,26 @@
 \alias{plot_pairwise_comparison}
 \title{Plot Pairwise Comparisons of Cytometry Datasets}
 \usage{
-plot_pairwise_comparison(mat, is_dist = TRUE, no_rotate = FALSE,
+plot_pairwise_comparison(mat, pcnt_similarity_scale = TRUE,
   with_dendrograms = FALSE, ...)
 }
 \arguments{
-\item{mat}{A comparison matrix produced by \code{\link{pairwise_emd}} or
-\code{\link{pairwise_mem_rmsd}}.}
-
-\item{is_dist}{?}
+\item{mat}{A comparison matrix produced by \code{\link[=pairwise_emd]{pairwise_emd()}} or
+\code{\link[=pairwise_mem_rmsd]{pairwise_mem_rmsd()}}.}
 
 \item{with_dendrograms}{?}
 
 \item{...}{?}
+
+\item{is_dist}{?}
 }
 \description{
 \code{plot_pairwise_comparison} plots a heatmap of a pairwise
-    comparison of datasets with \code{\link{gplots::heatmap.2}}.
+comparison of datasets with \code{\link[gplots:heatmap.2]{gplots::heatmap.2()}}.
 }
 \seealso{
-\code{\link{gplots::heatmap.2}} for the underlying plotting
-    function, and \code{\link{grDevices::colorRampPalette}} for color palette
-    generation. \code{\link{pairwise_emd}} or \code{\link{pairwise_mem_rmsd}}
-    should be used to generate \code{matrix_file}.
+\code{\link[gplots:heatmap.2]{gplots::heatmap.2()}} for the underlying plotting
+function, and \code{\link[grDevices:colorRampPalette]{grDevices::colorRampPalette()}} for color palette
+generation. \code{\link[=pairwise_emd]{pairwise_emd()}} or \code{\link[=pairwise_mem_rmsd]{pairwise_mem_rmsd()}}
+should be used to generate \code{matrix_file}.
 }

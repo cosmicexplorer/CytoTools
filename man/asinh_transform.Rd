@@ -14,14 +14,14 @@ The transformed vector.
 }
 \description{
 \code{asinh_transform} applies the standard transform applied to
-    channels of CyToF or flow cytometry data when comparing channels
-    directly.
+channels of CyToF or flow cytometry data when comparing channels
+directly.
 }
 \details{
 Performs the \code{asinh(x / 5)} transformation to the input data.
 }
 \references{
 Garner, Duane L., et al. "Fluorometric assessments of
-    mitochondrial function and viability in cryopreserved bovine
-    spermatozoa." Biology of Reproduction 57.6 (1997): 1401-1406.
+mitochondrial function and viability in cryopreserved bovine
+spermatozoa." Biology of Reproduction 57.6 (1997): 1401-1406.
 }
