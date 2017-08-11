@@ -51,43 +51,12 @@ asinh_transform <- function (cofactor) { function (x) {
     asinh(x / cofactor)
 }}
 
-extract_pheno_channels <- function (channel_names, pop, pop_desc) {
-    ## we're matching channel names by fixed strings, and throw if there are
-    ## multiple matches for a channel name. if one channel name is a substring
-    ## of another (e.g. CD45RA and CD45), and we search for CD45 first, we'll
-    ## find results for both, and narrow columns to matches for superstrings
-    ## first
-    stopifnot(anyDuplicated(channel_names) == 0)
-    super_first <- comparisort::merge_sort(
-        as.list(channel_names),
-        function (a, b) {
-            if (grepl(b, a, fixed = TRUE)) {
-                TRUE
-            } else if (grepl(a, b, fixed = TRUE)) {
-                FALSE
-            } else { a < b }
-        }) %>% unlist
-    with_canonical_channels <- Reduce(
-        x = super_first,
-        init = rep(colnames(pop)),
-        f = function (cols, channel) {
-            matched <- grep(channel, cols, fixed = TRUE)
-            if (length(matched) == 0) {
-                stop(sprintf(
-                    "no match was found for channel '%s' in population '%s'",
-                    channel, pop_desc))
-            } else if (length(matched) > 1) {
-                stop(sprintf(paste(
-                    "more than one match was found for channel '%s'",
-                    "in population '%s': [%s]"),
-                    channel, pop_desc,
-                    paste("\"", cols[matched], "\"",
-                          sep = "", collapse = ", ")))
-            }
-            cols[matched] <- channel
-            cols
-        })
-    with_canonical_channels[,channel_names]
+normalize_channels <- function (s) {
+    s %>% toupper %>% gsub("[[:punct:][:space:]]", "", ., perl = TRUE)
+}
+
+paste_string_array <- function (strings, collapse = ", ", fmt = "[%s]") {
+    paste0("\"", strings, "\"", collapse = collapse) %>% sprintf(fmt, .)
 }
 
 #' @title Extract and Transform Phenotype Channels from a CyToF Dataset
@@ -100,7 +69,7 @@ extract_pheno_channels <- function (channel_names, pop, pop_desc) {
 #' @param pheno_channel_names character vector without duplicates containing
 #'     names of channels to extract from each population. See details for how it
 #'     is interpreted.
-#' @param pop_list list of data frames containing CyToF data as from
+#' @param pop_list list of data frames containing CyToF data, e.g. from
 #'     [read_files_sorted()].
 #' @param ref a data frame containing CyToF data, as from [read_cyto_file()], or
 #'     NULL. If NULL, the populations in `pop_list` are joined with [rbind()]
@@ -131,34 +100,86 @@ extract_pheno_channels <- function (channel_names, pop, pop_desc) {
 #'
 normalize_pheno_channels_dataset <- function
 (
-    pheno_channel_names, pop_list,
-    ref = NULL,
+    pheno_channel_names, pop_list, ref,
     transform_fun = asinh_transform(5)
 ) {
     stopifnot(is.vector(pheno_channel_names, 'character'),
               is.list(pop_list),
               lapply(pop_list, is.data.frame) %>% unlist,
-              (is.null(ref) || is.data.frame(ref)),
-              is.function(transform_fun))
-    pop_names <- names(pop_list) %>% {
-        if (!is.null(.)) { . } else { as.character(1:length(pop_list)) }
+              is.data.frame(ref),
+              is.function(transform_fun),
+              anyDuplicated(pheno_channel_names) == 0)
+    if (is.null(names(pop_list))) {
+        names(pop_list) <- as.character(1:length(pop_list))
     }
-    pops_correct_channels <- lapply(1:length(pop_names), function (i) {
-        extract_pheno_channels(pheno_channel_names,
-                               pop_list[[i]], pop_names[[i]]) %>%
-            as.matrix %>%
-            transform_fun
+    if (anyDuplicated(names(pop_list)) != 0) {
+        stop(sprintf("names of pop_list must be unique: %s",
+                     paste_string_array(names(pop_list))))
+    }
+    if ("REF" %in% names(pop_list)) {
+        stop(sprintf(paste(
+            "REF is in the names of pop_list, but it is reserved",
+            "for the reference population: %s"),
+            paste_string_array(names(pop_list))))
+    }
+    pop_ref_list <- c(list(REF = ref), pop_list)
+    ## we're matching channel names by fixed strings, and throw if there are
+    ## multiple matches for a channel name. if one channel name is a substring
+    ## of another (e.g. CD45RA and CD45), and we search for CD45 first, we'll
+    ## find results for both
+    super_first <- pheno_channel_names %>% as.list %>%
+        comparisort::merge_sort(function (a, b) grepl(b, a, fixed = TRUE)) %>%
+        unlist
+    errors <- list()
+    pops_right_channels <- lapply(1:length(pop_ref_list), function (pop_idx) {
+        pop <- pop_ref_list[[pop_idx]]
+        ret <- cbind(pop)
+        desc <- names(pop_ref_list)[[pop_idx]]
+        for (chan in super_first) {
+            channels <- rep(colnames(pop))
+            matched <- grep(chan, channels, fixed = TRUE)
+            if (length(matched) == 0) {
+                dists <- channels %>% normalize_channels %>%
+                    adist(normalize_channels(chan),
+                          costs = c(i = 1, d = 0.01, s = 0.5)) %>%
+                    as.vector
+                maybe_similar <- channels[dists < 0.5]
+                if (length(maybe_similar) == 0) {
+                    errors <<- c(errors, list(sprintf(paste(
+                        "no match for channel '%s' in population '%s',",
+                        "and this program is not smart enough to know why",
+                        "('%s' may just not exist in population '%s')"),
+                        chan, desc, chan, desc)))
+                } else {
+                    errors <<- c(errors, list(sprintf(paste(
+                        "no match for channel '%s' in population '%s';",
+                        "while this is pure guesswork,",
+                        "some possibilities *might* be: %s"),
+                        chan, desc, paste_string_array(maybe_similar))))
+                }
+            } else if (length(matched) > 1) {
+                errors <<- c(errors, list(sprintf(paste(
+                    "more than one match was found for channel '%s'",
+                    "in population '%s' (this may indicate a bug): %s"),
+                    chan, desc, paste_string_array(channels[matched]))))
+            } else {
+                ret[,chan] <- pop[,channels[matched]]
+                pop <- pop[,channels[-matched]]
+            }
+        }
+        ret
     })
-    ref_correct_channels <- if (!is.null(ref)) {
-                                extract_pheno_channels(pheno_channel_names,
-                                                       ref, "REF") %>%
-                                    as.matrix %>%
-                                    transform_fun
-                            } else {
-                                Reduce(x = pops_correct_channels, f = rbind)
-                            }
-    list(pop_list = pops_correct_channels,
-         ref = ref_correct_channels)
+    if (length(errors) > 0) {
+        for (err in errors) {
+            msg("%s", err)
+        }
+        stop("errors found during normalization")
+    }
+    final_pops <- pops_right_channels %>% lapply(function (pop) {
+        pop[,pheno_channel_names] %>% as.matrix %>% transform_fun
+    })
+    list(pop_list = final_pops[-1],
+         ref = final_pops[[1]])
 }
 
 
@@ -425,7 +446,7 @@ calc_mem <- function (pop_list, ref,
                       scale_limit = NULL) {
     markers <- colnames(ref)
     for (pop in pop_list) {
-        stopifnot(compare_names(colnames(pop), markers))
+        stopifnot(compare_names(channels, markers))
     }
     pop_names <- names(pop_list)
     ## make data frames of pop median/iqr

@@ -4,7 +4,7 @@
 \alias{normalize_pheno_channels_dataset}
 \title{Extract and Transform Phenotype Channels from a CyToF Dataset}
 \usage{
-normalize_pheno_channels_dataset(pheno_channel_names, pop_list, ref = NULL,
+normalize_pheno_channels_dataset(pheno_channel_names, pop_list, ref,
   transform_fun = asinh_transform(5))
 }
 \arguments{
@@ -12,7 +12,7 @@ normalize_pheno_channels_dataset(pheno_channel_names, pop_list, ref = NULL,
 names of channels to extract from each population. See details for how it
 is interpreted.}
 
-\item{pop_list}{list of data frames containing CyToF data as from
+\item{pop_list}{list of data frames containing CyToF data, e.g. from
 \code{\link[=read_files_sorted]{read_files_sorted()}}.}
 
 \item{ref}{a data frame containing CyToF data, as from \code{\link[=read_cyto_file]{read_cyto_file()}}, or

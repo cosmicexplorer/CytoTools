@@ -25,24 +25,9 @@ sorted_cytof_data <- CytoTools::read_files_sorted(
     split_by = c("_", " "),
     orders = list(c(), c("pre", "3wk", "12wk", "6m")))
 
-## Names are used to mark each file's row and column in the final
-## heatmap. The below uses ~regex magic~ to make the names look a little
-## prettier for a specific format of filename -- just do:
-##
-## > names(cytof_data) <- data_files_sorted
-##
-## for the easiest option.
-## names(cytof_data) <- CytoTools::replace_matches(
-##     data_files_sorted,
-##     list("^[\\./]*" = "",
-##          "\\.fcs$" = "",
-##          "viSNE" = "",
-##          "^_+|_+$" = "",
-##          "_+" = " "))
-
 
 ### EMD analysis on viSNE axes
-tsne_matrices <- lapply(cytof_data, function (fcs_df) {
+tsne_matrices <- lapply(sorted_cytof_data, function (fcs_df) {
     as.matrix(fcs_df[,c("tSNE1", "tSNE2")])
 })
 
@@ -97,9 +82,14 @@ pheno_channel_names <- c(
     "CD69", "CD8", "CXCR3", "CXCR5", "HLA-DR", "ICOS", "PD-1", "PD-L1", "TCRgd",
     "TIM3")
 
+fs <- list.files(
+    pattern = "\\.fcs$", all.files = T, full.names = T, no.. = T) %>%
+    (function (f) { lapply(f, read_cyto_file) %>% set_names(f) }) %>%
+    Filter(f = (. %>% colnames %>% grepl("PDL1", ., fixed = T) %>% any))
+
 pheno_data <- CytoTools::normalize_pheno_channels_dataset(
-    pheno_channel_names, cytof_data,
-    ref = CytoTools::read_cyto_file("./iPSCs.fcs"),
+    pheno_channel_names, fs["./29_RCCPBMC_panel4_PD-1+ CD4.fcs"],
+    ref = CytoTools::read_cyto_file("./29_RCCPBMC_panel4_PD-1+ CD4.fcs"),
     transform_fun = asinh_transform(5))
 
 markers <- pheno_data$shared_channels
