@@ -55,15 +55,20 @@ extract_pheno_channels <- function (channel_names, pop, pop_desc) {
     ## we're matching channel names by fixed strings, and throw if there are
     ## multiple matches for a channel name. if one channel name is a substring
     ## of another (e.g. CD45RA and CD45), and we search for CD45 first, we'll
-    ## find results for both. narrow columns to matches for longer strings first
-    longer_first <- channel_names %>% sort %>% rev %T>% {
-        stopifnot(anyDuplicated(.) == 0)
-    }
-    ## FIXME: longer_first should be "super_first", since superstrings that have
-    ## different prefixes may still cause errors if the superstring's first
-    ## letter is earlier in the alphabet!
+    ## find results for both, and narrow columns to matches for superstrings
+    ## first
+    stopifnot(anyDuplicated(channel_names) == 0)
+    super_first <- comparisort::merge_sort(
+        as.list(channel_names),
+        function (a, b) {
+            if (grepl(b, a, fixed = TRUE)) {
+                TRUE
+            } else if (grepl(a, b, fixed = TRUE)) {
+                FALSE
+            } else { a < b }
+        }) %>% unlist
     with_canonical_channels <- Reduce(
-        x = longer_first,
+        x = super_first,
         init = rep(colnames(pop)),
         f = function (cols, channel) {
             matched <- grep(channel, cols, fixed = TRUE)

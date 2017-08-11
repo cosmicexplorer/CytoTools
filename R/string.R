@@ -1,7 +1,6 @@
 ### String manipulation.
 
 #' @import magrittr
-#' @import dplyr
 
 
 #' @title Split Elements of a Character Vector By Multiple Elements
@@ -188,4 +187,10 @@ sort_by_component <- function (strs, split_by, orders = list(),
     splits <- multi_str_split(strs, split_by, fixed = fixed)
     indices <- sort_component_helper(splits, 1:length(splits), orders)
     if (value) { strs[indices] } else { indices }
+}
+
+
+
+sort_by_substrs <- function (strs) {
+    
 }
