@@ -23,6 +23,33 @@ is_nonneg_scalar <- function (x, allow_zero = TRUE) {
         ((x > 0) || (allow_zero && (x == 0)))
 }
 
+#' @title Rotate a Matrix Counter-Clockwise
+#'
+#' @description `rotate_matrix_ccw` performs a counter-clockwise rotation of the
+#'     input matrix.
+#'
+#' @param mat Any matrix.
+#'
+#' @return Return an n x m matrix obtained by rotating `mat` counter-clockwise,
+#'     if `mat` is an m x n matrix.
+#'
+#' @examples
+#' mat <- matrix(1:8, ncol = 2)
+#' mat
+#' ##      [,1] [,2]
+#' ## [1,]    1    5
+#' ## [2,]    2    6
+#' ## [3,]    3    7
+#' ## [4,]    4    8
+#' rotate_matrix_ccw(mat)
+#' ##      [,1] [,2] [,3] [,4]
+#' ## [1,]    5    6    7    8
+#' ## [2,]    1    2    3    4
+#'
+#' @export
+#'
+rotate_matrix_ccw <- function (mat) { mat[,ncol(mat):1] %>% t }
+
 #' @title Execute Expression and Measure Execution Time
 #'
 #' @description `timed_execute` executes an expression and measures the time
@@ -122,6 +149,8 @@ msg <- function (...) {
 }
 
 merge_named_lists <- function (a, b) {
+    stopifnot(is.list(a), is.list(b))
+    if (length(a) == 0) { return(b) }
     nma <- get_names(a)
     nmb <- get_names(b)
     ret <- rep(a)

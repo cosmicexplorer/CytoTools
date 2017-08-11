@@ -7,13 +7,13 @@
 calc_mem(pop_list, ref, IQRthresh = 0.5, scale_limit = NULL)
 }
 \arguments{
-\item{pop_list}{list of floating-point matrices, each with the same column
-names in the same order. Each column represents \emph{transformed} expression
-levels of the named phenotype.}
+\item{pop_list}{list of floating-point matrices or data frames, each with the
+same column names in the same order. Each column represents \emph{transformed}
+expression levels of the named phenotype.}
 
-\item{ref}{floating-point matrix with the same column names in the same order
-as each element of \code{pop_list}, with entries representing \emph{transformed}
-expression levels. Used as reference population.}
+\item{ref}{floating-point matrix or data frame with the same column names in
+the same order as each element of \code{pop_list}, with entries representing
+\emph{transformed} expression levels. Used as reference population.}
 
 \item{IQRthresh}{positive scalar floating-point, used as lower bound for IQR
 calculations (see MEM paper).}
@@ -36,6 +36,24 @@ of each population given against the provided reference population.
 Note that the values of entries in \code{ref} and the populations of
 \code{pop_list} are assumed to already be transformed (typically an arcsinh
 transform, as in \code{\link[=asinh_transform]{asinh_transform()}}).
+}
+\examples{
+## make some example data (values are not representative of real data)
+## inputs to `calc_mem` should be transformed already (e.g. the below
+## represents an arcsinh-transformed dataset)
+a <- data.frame(CCR5 = rnorm(100, 0, 5), CD3 = rnorm(100, 0, 5))
+b <- data.frame(CCR5 = rnorm(150, 0, 5), CD3 = rnorm(150, 0, 5))
+## example reference
+ref <- data.frame(CCR5 = rnorm(300, 0, 5), CD3 = rnorm(300, 0, 5))
+## calculate MEM with minimum IQR of 0.5, scaled so maximum absolute
+## magnitude is equal to 10 (as suggested in MEM paper)
+calc_mem(list("pop A" = a, "pop B" = b),
+         ref,
+         IQRthresh = 0.5, scale_limit = 10)
+##            CCR5         CD3
+## pop A -5.194819  6.13224465
+## pop B 10.000000 -0.09676974
+
 }
 \references{
 Diggins, Kirsten E., et al. "Characterizing cell subsets using

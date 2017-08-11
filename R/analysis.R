@@ -353,12 +353,12 @@ normal_iqr <- function (x, ...) {
 #' @description `calc_mem` computes the Marker Enrichment Modelling (MEM) score
 #'     of each population given against the provided reference population.
 #'
-#' @param pop_list list of floating-point matrices, each with the same column
-#'     names in the same order. Each column represents *transformed* expression
-#'     levels of the named phenotype.
-#' @param ref floating-point matrix with the same column names in the same order
-#'     as each element of `pop_list`, with entries representing *transformed*
-#'     expression levels. Used as reference population.
+#' @param pop_list list of floating-point matrices or data frames, each with the
+#'     same column names in the same order. Each column represents *transformed*
+#'     expression levels of the named phenotype.
+#' @param ref floating-point matrix or data frame with the same column names in
+#'     the same order as each element of `pop_list`, with entries representing
+#'     *transformed* expression levels. Used as reference population.
 #' @param IQRthresh positive scalar floating-point, used as lower bound for IQR
 #'     calculations (see MEM paper).
 #' @param scale_limit positive scalar floating-point or `NULL`. If not `NULL`,
@@ -380,6 +380,23 @@ normal_iqr <- function (x, ...) {
 #'
 #' @references Diggins, Kirsten E., et al. "Characterizing cell subsets using
 #'     marker enrichment modeling." Nature Methods 14.3 (2017): 275-278.
+#'
+#' @examples
+#' ## make some example data (values are not representative of real data)
+#' ## inputs to `calc_mem` should be transformed already (e.g. the below
+#' ## represents an arcsinh-transformed dataset)
+#' a <- data.frame(CCR5 = rnorm(100, 0, 5), CD3 = rnorm(100, 0, 5))
+#' b <- data.frame(CCR5 = rnorm(150, 0, 5), CD3 = rnorm(150, 0, 5))
+#' ## example reference
+#' ref <- data.frame(CCR5 = rnorm(300, 0, 5), CD3 = rnorm(300, 0, 5))
+#' ## calculate MEM with minimum IQR of 0.5, scaled so maximum absolute
+#' ## magnitude is equal to 10 (as suggested in MEM paper)
+#' calc_mem(list("pop A" = a, "pop B" = b),
+#'          ref,
+#'          IQRthresh = 0.5, scale_limit = 10)
+#' ##            CCR5         CD3
+#' ## pop A -5.194819  6.13224465
+#' ## pop B 10.000000 -0.09676974
 #'
 #' @export
 #'
@@ -430,21 +447,49 @@ calc_mem <- function (pop_list, ref,
 #' @description `plot_pairwise_comparison` plots a heatmap of a pairwise
 #'     comparison of datasets with [gplots::heatmap.2()].
 #'
-#' @param mat A comparison matrix produced by [pairwise_emd()] or
-#'     [pairwise_mem_rmsd()].
-#' @param pcnt_similarity_scale ?
-#' @param with_dendrograms ?
-#' @param ... ?
+#' @param mat numeric matrix, such as produced by [pairwise_emd()] or
+#'     [pairwise_mem_rmsd()]. [rotate_matrix_ccw()] can be used to rotate `mat`
+#'     as desired. *must* have [dimnames()]!
+#' @param pcnt_similarity_scale logical, whether to read `mat` as a distance
+#'     matrix and scale its values from 0-100, with 100 for 0 entries and 0 for
+#'     the greatest entry, scaled linearly for others.
+#' @param with_dendrograms logical, whether to use dendrograms on the output.
+#' @param ... additional arguments to pass to [gplots::heatmap.2()]. These take
+#'     precedence over any arguments this function tries to pass.
+#'
+#' @details `mat` can be any numeric matrix, but this function is specifically
+#'     designed for the case when `mat` is a distance matrix (symmetric, all
+#'     values nonnegative). `pcnt_similarity_scale = TRUE` creates a
+#'     "similarity matrix" from `mat`, scaling its values linearly from 0-100,
+#'     using 100 for 0 entries of `mat` and 0 for the greatest entry of `mat`.
 #'
 #' @seealso [gplots::heatmap.2()] for the underlying plotting
 #'     function, and [grDevices::colorRampPalette()] for color palette
 #'     generation. [pairwise_emd()] or [pairwise_mem_rmsd()]
-#'     should be used to generate `matrix_file`.
+#'     should be used to generate `matrix_file`. [rotate_matrix_ccw()] can be
+#'     used to rotate the matrix `mat` as desired.
+#'
+#' @examples
+#' mat <- as.matrix(dist(rnorm(5)))
+#' ## row/colnames are required for this function
+#' dimnames(mat) <- list(c("uno", "dos", "tres", "cuatro", "cinco"),
+#'                       c("uno", "dos", "tres", "cuatro", "cinco"))
+#' ## no dendrograms, no scaling (default)
+#' plot_pairwise_comparison(mat)
+#' ## rotated
+#' plot_pairwise_comparison(rotate_matrix_ccw(mat))
+#' ## (R graphics device)
+#' ## add similarity scaling and dendrograms
+#' plot_pairwise_comparison(
+#'     mat,
+#'     pcnt_similarity_scale = TRUE, with_dendrograms = TRUE,
+#'     cexRow = 1.5, cexCol = 1.5, margin = c(5, 5))
+#' ## (R graphics device)
 #'
 #' @export
 #'
 plot_pairwise_comparison <- function (mat,
-                                      pcnt_similarity_scale = TRUE,
+                                      pcnt_similarity_scale = FALSE,
                                       with_dendrograms = FALSE,
                                       ...) {
     opts <- merge_named_lists(

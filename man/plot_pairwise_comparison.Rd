@@ -4,26 +4,56 @@
 \alias{plot_pairwise_comparison}
 \title{Plot Pairwise Comparisons of Cytometry Datasets}
 \usage{
-plot_pairwise_comparison(mat, pcnt_similarity_scale = TRUE,
+plot_pairwise_comparison(mat, pcnt_similarity_scale = FALSE,
   with_dendrograms = FALSE, ...)
 }
 \arguments{
-\item{mat}{A comparison matrix produced by \code{\link[=pairwise_emd]{pairwise_emd()}} or
-\code{\link[=pairwise_mem_rmsd]{pairwise_mem_rmsd()}}.}
+\item{mat}{numeric matrix, such as produced by \code{\link[=pairwise_emd]{pairwise_emd()}} or
+\code{\link[=pairwise_mem_rmsd]{pairwise_mem_rmsd()}}. \code{\link[=rotate_matrix_ccw]{rotate_matrix_ccw()}} can be used to rotate \code{mat}
+as desired. \emph{must} have \code{\link[=dimnames]{dimnames()}}!}
 
-\item{pcnt_similarity_scale}{?}
+\item{pcnt_similarity_scale}{logical, whether to read \code{mat} as a distance
+matrix and scale its values from 0-100, with 100 for 0 entries and 0 for
+the greatest entry, scaled linearly for others.}
 
-\item{with_dendrograms}{?}
+\item{with_dendrograms}{logical, whether to use dendrograms on the output.}
 
-\item{...}{?}
+\item{...}{additional arguments to pass to \code{\link[gplots:heatmap.2]{gplots::heatmap.2()}}. These take
+precedence over any arguments this function tries to pass.}
 }
 \description{
 \code{plot_pairwise_comparison} plots a heatmap of a pairwise
 comparison of datasets with \code{\link[gplots:heatmap.2]{gplots::heatmap.2()}}.
 }
+\details{
+\code{mat} can be any numeric matrix, but this function is specifically
+designed for the case when \code{mat} is a distance matrix (symmetric, all
+values nonnegative). \code{pcnt_similarity_scale = TRUE} creates a
+"similarity matrix" from \code{mat}, scaling its values linearly from 0-100,
+using 100 for 0 entries of \code{mat} and 0 for the greatest entry of \code{mat}.
+}
+\examples{
+mat <- as.matrix(dist(rnorm(5)))
+## row/colnames are required for this function
+dimnames(mat) <- list(c("uno", "dos", "tres", "cuatro", "cinco"),
+                      c("uno", "dos", "tres", "cuatro", "cinco"))
+## no dendrograms, no scaling (default)
+plot_pairwise_comparison(mat)
+## rotated
+plot_pairwise_comparison(rotate_matrix_ccw(mat))
+## (R graphics device)
+## add similarity scaling and dendrograms
+plot_pairwise_comparison(
+    mat,
+    pcnt_similarity_scale = TRUE, with_dendrograms = TRUE,
+    cexRow = 1.5, cexCol = 1.5, margin = c(5, 5))
+## (R graphics device)
+
+}
 \seealso{
 \code{\link[gplots:heatmap.2]{gplots::heatmap.2()}} for the underlying plotting
 function, and \code{\link[grDevices:colorRampPalette]{grDevices::colorRampPalette()}} for color palette
 generation. \code{\link[=pairwise_emd]{pairwise_emd()}} or \code{\link[=pairwise_mem_rmsd]{pairwise_mem_rmsd()}}
-should be used to generate \code{matrix_file}.
+should be used to generate \code{matrix_file}. \code{\link[=rotate_matrix_ccw]{rotate_matrix_ccw()}} can be
+used to rotate the matrix \code{mat} as desired.
 }
