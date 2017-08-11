@@ -32,7 +32,7 @@ tsne_matrices <- lapply(sorted_cytof_data, function (fcs_df) {
 })
 
 emd_pairwise_analysis <- CytoTools::pairwise_emd(
-    tsne_matrices, downsample_rows = 100L, comparison_runs = 5L,
+    tsne_matrices, downsample_rows = 200L, comparison_runs = 10L,
     summary_funs = list(
         mean = mean,
         variance = var,
@@ -45,51 +45,37 @@ write.csv(emd_pairwise_analysis$variance, emd_tsne_variances_outfile)
 write.csv(emd_pairwise_analysis$median, emd_tsne_medians_outfile)
 
 pdf(emd_heatmap_outfile)
-## read the matrix of mean pairwise EMDs back from file. check.names = FALSE
-## ensures it doesn't remove spaces or other characters in our column names
-emd_means_fromfile <- as.matrix(read.csv(emd_tsne_means_outfile, row.names = 1,
-                                         check.names = FALSE))
 CytoTools::plot_pairwise_comparison(
-    emd_means_fromfile,
+    emd_pairwise_analysis$mean,
+    pcnt_similarity_scale = TRUE,
     ## play with the number of colors in this variable (at the top of this file)
     ## if the coloration seems weird or the color key is blank
     col = color_palette)
 dev.off()
 
-emd_variance_fromfile <- as.matrix(read.csv(emd_tsne_variances_outfile,
-                                            row.names = 1, check.names = FALSE))
-
 ## you can quickly see a histogram to see if any variances seem too high
-hist(emd_variance_fromfile)
+hist(emd_pairwise_analysis$variance / emd_pairwise_analysis$mean)
 
 ## or, you can plot a heatmap and see which pairs of files have the greatest
 ## variance. this isn't super useful -- if the variance is too high on any of
 ## them, you should increase the number of rows sampled per file or increase the
 ## number of comparison runs
 CytoTools::plot_pairwise_comparison(
-    emd_variance_fromfile,
-    ## turn off 0-100 scaling, if you want to
-    pcnt_similarity_scale = FALSE,
+    emd_pairwise_analysis$variance,
     col = color_palette)
 
 
 ### MEM analysis
 
 pheno_channel_names <- c(
-    "CCR4", "CCR5", "CCR7", "CD14", "CD16", "CD19", "CD20", "CD25", "CD27",
-    "CD28", "CD3", "CD32", "CD33", "CD33/Ox40", "CD38", "CD4", "CD43",
-    "CD43/Lag3", "CD44", "CD45", "CD45RA", "CD45RO", "CD56", "CD57", "CD64",
-    "CD69", "CD8", "CXCR3", "CXCR5", "HLA-DR", "ICOS", "PD-1", "PD-L1", "TCRgd",
+    "CCR4", "CCR5", "CCR7", "CD16", "CD19", "CD20", "CD27",
+    "CD28", "CD38",
+    "CD44", "CD45", "CD45RA", "CD45RO", "CD56",
+    "CD69", "CD8", "CXCR3", "CXCR5", "HLA-DR", "ICOS", "PD-1", "TCRgd",
     "TIM3")
-
-fs <- list.files(
-    pattern = "\\.fcs$", all.files = T, full.names = T, no.. = T) %>%
-    (function (f) { lapply(f, read_cyto_file) %>% set_names(f) }) %>%
-    Filter(f = (. %>% colnames %>% grepl("PDL1", ., fixed = T) %>% any))
-
 pheno_data <- CytoTools::normalize_pheno_channels_dataset(
-    pheno_channel_names, fs["./29_RCCPBMC_panel4_PD-1+ CD4.fcs"],
-    ref = CytoTools::read_cyto_file("./29_RCCPBMC_panel4_PD-1+ CD4.fcs"),
+    pheno_channel_names, sorted_cytof_data,
+    ref = CytoTools::read_cyto_file("./iPSCs.fcs"),
     transform_fun = asinh_transform(5))
 
 markers <- pheno_data$shared_channels

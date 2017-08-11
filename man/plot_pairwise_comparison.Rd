@@ -13,8 +13,8 @@ plot_pairwise_comparison(mat, pcnt_similarity_scale = FALSE,
 as desired. \emph{must} have \code{\link[=dimnames]{dimnames()}}!}
 
 \item{pcnt_similarity_scale}{logical, whether to read \code{mat} as a distance
-matrix and scale its values from 0-100, with 100 for 0 entries and 0 for
-the greatest entry, scaled linearly for others.}
+matrix and scale its values from 0-100, with 0 for 0 entries in \code{mat} and
+100 for the greatest entry in \code{mat}, scaled linearly for all others.}
 
 \item{with_dendrograms}{logical, whether to use dendrograms on the output.}
 
