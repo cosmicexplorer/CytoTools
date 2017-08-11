@@ -102,13 +102,118 @@ paste_string_array <- function (strings, collapse = ", ", fmt = "[%s]") {
 #'
 #' @examples
 #' ## make some example data (values are not representative of real data)
-#' a <- data.frame(CCR5 = rnorm(100, 0, 5), "CD3-144" = rnorm(100, 0, 5))
-#' b <- data.frame(CCR5 = rnorm(150, 0, 5), "CD3-119" = rnorm(150, 0, 5))
-#' c <- data.frame("CCR-5" = rnorm(150, 0, 5), CD33 = rnorm(150, 0, 5))
+#' a <- data.frame(CCR5 = rnorm(5, 0, 5), "CD3-144" = rnorm(5, 0, 5),
+#'                 check.names = FALSE)
+#' b <- data.frame(CCR5 = rnorm(10, 0, 5), "CD3-119" = rnorm(10, 0, 5),
+#'                 check.names = FALSE)
+#' cd <- data.frame("CCR-5" = rnorm(12, 0, 5), CD3 = rnorm(12, 0, 5),
+#'                 CD33 = rnorm(12, 0, 5), check.names = FALSE)
 #' ## example reference
-#' ref <- data.frame(CCR5 = rnorm(300, 0, 5), CD3 = rnorm(300, 0, 5))
+#' ref <- data.frame(CCR5 = rnorm(3, 0, 5), CD3 = rnorm(3, 0, 5))
 #'
+#' ## invocation -- note that asinh_transform(5) is a FUNCTION
+#' ## the string "CD3" was matched exactly in channels "CD3-144" and "CD3-119",
+#' ## so it detects them correctly
+#' normalize_pheno_channels_dataset(
+#'     c("CCR5", "CD3"), list("pop A" = a, "pop B" = b), ref = ref,
+#'     transform_fun = asinh_transform(5))
+#' ## $pop_list
+#' ## $pop_list[[1]]
+#' ##            CCR5         CD3
+#' ## [1,] -1.3571036  0.44244228
+#' ## [2,]  0.4194871 -0.39560702
+#' ## [3,] -1.3835876 -0.03439362
+#' ## [4,] -0.8761360 -0.72185809
+#' ## [5,]  0.2314494 -0.84833769
+#' ##
+#' ## $pop_list[[2]]
+#' ##              CCR5        CD3
+#' ##  [1,]  0.27778580 -0.1087184
+#' ##  [2,]  0.20259186  0.4651526
+#' ##  [3,] -1.73009568 -0.1646274
+#' ##  [4,]  0.40905722  0.7566038
+#' ##  [5,] -0.58926777 -0.8594370
+#' ##  [6,]  0.24980969 -0.6503514
+#' ##  [7,]  0.78063390  1.0762774
+#' ##  [8,] -0.20117061  0.2963788
+#' ##  [9,] -0.62969008  0.3292135
+#' ## [10,]  0.05312882  0.3456103
+#' ##
+#' ##
+#' ## $ref
+#' ##            CCR5        CD3
+#' ## [1,] -0.2221288  0.6901822
+#' ## [2,] -1.0284534 -1.2788120
+#' ## [3,] -0.1501430  0.2978884
+#' ##
 #'
+#' ## "CCR5" does NOT show up exactly in pop C, so it throws an error, but tries
+#' ## to find similarly-named columns
+#' normalize_pheno_channels_dataset(
+#'     c("CCR5", "CD3"), list("pop A" = a, "pop B" = b, "pop C" = cd),
+#'     ref = ref)
+#' ## no match for channel 'CCR5' in population 'pop C'; while this is pure
+#' ## guesswork, some possibilities *might* be: ["CCR-5"]
+#' ## more than one match was found for channel 'CD3' in population 'pop C'
+#' ## (this may indicate a bug): ["CD3", "CD33"]
+#' ## Error in normalize_pheno_channels_dataset(c("CCR5", "CD3"), list(`pop A` :
+#' ##   errors found during normalization
+#'
+#' ## in the previous example, multiple channels match "CD3" exactly, which also
+#' ## causes an error (we don't want to accidentally use a "CD33" channel).
+#' ## add some more fake data and now tell it to use the "CD33" channel as well,
+#' ## and it is now smart enough to know not to misuse the "CD33" channel
+#' a[,"CD33"] <- rnorm(5, 0, 5)
+#' b[,"CD33"] <- rnorm(10, 0, 5)
+#' cd[,"CCR5"] <- cd[,"CCR-5"]
+#' ref[,"CD33-114"] <- rnorm(3, 0, 5)
+#' normalize_pheno_channels_dataset(
+#'     c("CCR5", "CD3", "CD33"),
+#'     list("pop A" = a, "pop B" = b, "pop C" = cd), ref = ref)
+#' ## $pop_list
+#' ## $pop_list[[1]]
+#' ##            CCR5        CD3       CD33
+#' ## [1,] -0.9512973 -0.6753894  1.7032997
+#' ## [2,]  0.4382074 -0.0999171 -0.7765234
+#' ## [3,]  1.2189722 -1.0124230 -0.5081921
+#' ## [4,] -0.3854615 -1.2393886  0.4282537
+#' ## [5,]  0.2665361 -0.6581783 -1.1698828
+#' ##
+#' ## $pop_list[[2]]
+#' ##              CCR5        CD3         CD33
+#' ##  [1,] -0.41623276 -1.2707792 -0.097147561
+#' ##  [2,] -0.06911852 -1.8176153 -0.632693022
+#' ##  [3,]  0.25930404  0.1235879  0.475103994
+#' ##  [4,] -1.09454929  1.2005497 -1.208523332
+#' ##  [5,] -0.93752579 -0.9420507  1.358430135
+#' ##  [6,] -0.62597474  0.3766091 -0.393847648
+#' ##  [7,]  0.61259614 -0.1355130 -0.008940949
+#' ##  [8,]  1.01004676 -0.2293936  0.552282662
+#' ##  [9,]  0.49647024 -0.3595328 -0.389304614
+#' ## [10,]  1.17525574  1.0785971  0.010015518
+#' ##
+#' ## $pop_list[[3]]
+#' ##              CCR5        CD3        CD33
+#' ##  [1,] -0.77140821  0.4511830  0.92498386
+#' ##  [2,] -0.92331783  0.7450197 -0.58156055
+#' ##  [3,] -0.86837711 -0.5238199 -0.46144758
+#' ##  [4,]  1.08657936  0.5653928 -0.03154463
+#' ##  [5,]  1.19430952 -0.9029035 -1.37456983
+#' ##  [6,]  1.43774755  0.3475482  0.70819858
+#' ##  [7,]  1.07056107 -0.5853111 -0.05238444
+#' ##  [8,]  0.03620114 -0.6124719  0.32051220
+#' ##  [9,] -0.46804991 -1.3971870  0.78790251
+#' ## [10,] -0.13056437 -0.9643665  0.22749253
+#' ## [11,]  1.58686668  0.6491622 -0.11065898
+#' ## [12,]  0.76899275 -0.5669664  0.87053700
+#' ##
+#' ##
+#' ## $ref
+#' ##            CCR5        CD3      CD33
+#' ## [1,] -0.1405579  0.6416779 0.7893279
+#' ## [2,] -0.5616811 -1.3688846 1.2802796
+#' ## [3,]  0.5900767 -1.6768527 0.5947007
+#' ##
 #'
 #' @export
 #'
@@ -458,7 +563,7 @@ calc_mem <- function (pop_list, ref,
                       scale_limit = NULL) {
     markers <- colnames(ref)
     for (pop in pop_list) {
-        stopifnot(compare_names(channels, markers))
+        stopifnot(compare_names(colnames(pop), markers))
     }
     pop_names <- names(pop_list)
     ## make data frames of pop median/iqr

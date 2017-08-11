@@ -39,7 +39,9 @@ emd_pairwise_analysis <- CytoTools::pairwise_emd(
         median = median),
     verbose_timing = TRUE)
 
-## save the EMD summary stats matrices to file so we don't lose our work
+## save the EMD summary stats matrices to file
+## note: read these back in with read.csv(filename, check.names = FALSE) so
+## R doesn't clobber the dimnames
 write.csv(emd_pairwise_analysis$mean, emd_tsne_means_outfile)
 write.csv(emd_pairwise_analysis$variance, emd_tsne_variances_outfile)
 write.csv(emd_pairwise_analysis$median, emd_tsne_medians_outfile)
@@ -67,15 +69,27 @@ CytoTools::plot_pairwise_comparison(
 
 ### MEM analysis
 
+mem_ref_pop <- CytoTools::read_cyto_file("./iPSCs.fcs")
+
+## specify channel names to use. these don't have to be in any order -- see
+## ?CytoTools::normalize_pheno_channels_dataset for details
 pheno_channel_names <- c(
-    "CCR4", "CCR5", "CCR7", "CD16", "CD19", "CD20", "CD27",
-    "CD28", "CD38",
-    "CD44", "CD45", "CD45RA", "CD45RO", "CD56",
-    "CD69", "CD8", "CXCR3", "CXCR5", "HLA-DR", "ICOS", "PD-1", "TCRgd",
-    "TIM3")
+    "CCR4", "CCR5", "CCR7", "CD16", "CD19", "CD20", "CD27", "CD28", "CD38",
+    "CD44", "CD45", "CD45RA", "CD45RO", "CD56", "CD69", "CD8", "CXCR3", "CXCR5",
+    "HLA-DR", "ICOS", "PD-1", "TCRgd", "TIM3")
+
+## if you're not sure of the channel names, the below is a little trick to see
+## every column name on every FCS file in the dataset, including the reference,
+## in `all_channel_names_dataset`. this can help to understand which channels
+## are shared across the dataset so that you can perform MEM on them. using
+## `f = intersect` instead lets you see the channel names that are the exact
+## same across all files, which can be either more or less helpful.
+as_colnames <- lapply(c(sorted_cytof_data, mem_ref_pop), colnames)
+all_channel_names_dataset <- Reduce(x = as_colnames, f = union)
+
 pheno_data <- CytoTools::normalize_pheno_channels_dataset(
     pheno_channel_names, sorted_cytof_data,
-    ref = CytoTools::read_cyto_file("./iPSCs.fcs"),
+    ref = mem_ref_pop,
     transform_fun = asinh_transform(5))
 
 markers <- pheno_data$shared_channels
@@ -91,12 +105,9 @@ write.csv(mem_df, mem_outfile)
 write.csv(as.matrix(dist(mem_df)), mem_rmsd_outfile)
 
 pdf(mem_heatmap_outfile)
-## read the MEM RMSD comparison matrix back from file so we check that we wrote
-## it correctly -- exact same as using as.matrix(dist(mem_df))
-mem_rmsd_fromfile <- as.matrix(
-    read.csv(mem_rmsd_outfile, row.names = 1, check.names = FALSE))
+## as.matrix(dist(mem_df)) performs the RMSD calculations
 CytoTools::plot_pairwise_comparison(
-    mem_rmsd_fromfile, with_dendrograms = TRUE, col = color_palette,
+    as.matrix(dist(mem_df)), with_dendrograms = TRUE, col = color_palette,
     ## play with these to adjust axis label sizes
     cexRow = .25, cexCol = .25, margin = c(5, 5))
 dev.off()
