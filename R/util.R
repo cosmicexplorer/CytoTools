@@ -17,10 +17,16 @@ is_counting_num <- function (x, allow_zero = FALSE) {
         ((x > 0) || (allow_zero && (x == 0)))
 }
 
+is_nonneg_scalar <- function (x, allow_zero = TRUE) {
+    is.vector(x, mode = 'double') &&
+        (length(x) == 1) &&
+        ((x > 0) || (allow_zero && (x == 0)))
+}
+
 #' @title Execute Expression and Measure Execution Time
 #'
-#' @description Execute an expression and measure the time taken, returning
-#'     both.
+#' @description `timed_execute` executes an expression and measures the time
+#'     taken, returning both.
 #'
 #' @param expr R expression to execute.
 #' @param digits integer, number of digits to round time to.

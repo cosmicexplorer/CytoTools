@@ -23,8 +23,8 @@ character vector containing the splits of the corresponding element of
 \code{strs} according to \code{splits}.
 }
 \description{
-Split the elements of \code{strs} into substrings between
-instances of any element of \code{splits}.
+\code{multi_str_split} splits the elements of \code{strs} into substrings
+between instances of any element of \code{splits}.
 }
 \examples{
 multi_str_split(c("a_b-c d", "a-b_c d", "123"), c("-", "_", " ", "2"),

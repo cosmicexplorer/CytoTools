@@ -2,10 +2,7 @@
 
 export(asinh_transform)
 export(calc_mem)
-export(emd_comparison_runs_default)
-export(emd_downsample_rows_default)
 export(list_dir_files)
-export(mem_iqr_threshold_default)
 export(multi_str_split)
 export(normalize_pheno_channels_dataset)
 export(pairwise_emd)

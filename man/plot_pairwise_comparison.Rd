@@ -11,11 +11,11 @@ plot_pairwise_comparison(mat, pcnt_similarity_scale = TRUE,
 \item{mat}{A comparison matrix produced by \code{\link[=pairwise_emd]{pairwise_emd()}} or
 \code{\link[=pairwise_mem_rmsd]{pairwise_mem_rmsd()}}.}
 
+\item{pcnt_similarity_scale}{?}
+
 \item{with_dendrograms}{?}
 
 \item{...}{?}
-
-\item{is_dist}{?}
 }
 \description{
 \code{plot_pairwise_comparison} plots a heatmap of a pairwise

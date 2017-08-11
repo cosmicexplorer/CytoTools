@@ -2,30 +2,47 @@
 % Please edit documentation in R/analysis.R
 \name{calc_mem}
 \alias{calc_mem}
-\title{?}
+\title{Compute MEM Scores Over Populations in a Dataset}
 \usage{
-calc_mem(pop_list, ref, IQRthresh = mem_iqr_threshold_default,
-  scale_limit = NULL)
+calc_mem(pop_list, ref, IQRthresh = 0.5, scale_limit = NULL)
 }
 \arguments{
-\item{pop_list}{?}
+\item{pop_list}{list of floating-point matrices, each with the same column
+names in the same order. Each column represents \emph{transformed} expression
+levels of the named phenotype.}
 
-\item{ref}{?}
+\item{ref}{floating-point matrix with the same column names in the same order
+as each element of \code{pop_list}, with entries representing \emph{transformed}
+expression levels. Used as reference population.}
 
-\item{IQRthresh}{?}
+\item{IQRthresh}{positive scalar floating-point, used as lower bound for IQR
+calculations (see MEM paper).}
 
-\item{scale_limit}{?}
+\item{scale_limit}{positive scalar floating-point or \code{NULL}. If not \code{NULL},
+MEM values are scaled so the greatest maximum absolute MEM value is equal
+to \code{scale_limit}, otherwise no scaling occurs.}
 }
 \value{
-?
+matrix with column names as in \code{pop_list} and \code{ref}, row names equal
+to the names of \code{pop_list} (if given). Each row contains the MEM values
+of a population in \code{pop_list} for each phenotype channel, in the same
+order as given.
 }
 \description{
-?
+\code{calc_mem} computes the Marker Enrichment Modelling (MEM) score
+of each population given against the provided reference population.
 }
 \details{
-?
+Note that the values of entries in \code{ref} and the populations of
+\code{pop_list} are assumed to already be transformed (typically an arcsinh
+transform, as in \code{\link[=asinh_transform]{asinh_transform()}}).
 }
 \references{
 Diggins, Kirsten E., et al. "Characterizing cell subsets using
 marker enrichment modeling." Nature Methods 14.3 (2017): 275-278.
+}
+\seealso{
+\code{\link[=normalize_pheno_channels_dataset]{normalize_pheno_channels_dataset()}} can be used to generate
+a suitable \code{pop_list} and \code{ref} from a CyToF dataset, applying
+transformations and normalizing phenotype channel names.
 }

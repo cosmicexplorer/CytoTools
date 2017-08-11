@@ -27,8 +27,8 @@ Named list of data frames, where each name is the filename from which
 the value at that index is read.
 }
 \description{
-Read all files with the given extensions in the current
-directory into a named list of data frames.
+\code{read_files_sorted} reads all files with the given extensions in
+the current directory into a named list of data frames.
 }
 \details{
 The directory specified by \code{path} is scanned for files with any of
@@ -40,7 +40,7 @@ named list, which is then populated with each file's contents using
 \code{\link[=read_cyto_file]{read_cyto_file()}}.
 }
 \examples{
-sorted_cytof_data <- CytoTools::read_files_sorted(
+sorted_cytof_data <- read_files_sorted(
    path = ".",
    extensions = c("fcs"),
    split_by = c("_", " "),

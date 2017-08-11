@@ -14,8 +14,8 @@ Character vector containing paths to all files located at the
 specified \code{path}.
 }
 \description{
-List all files in a directory without including other
-directories and using the full filenames.
+\code{list_dir_files} lists all files in a directory without
+including other directories and using the full filenames.
 }
 \examples{
 ## list all files in the current directory

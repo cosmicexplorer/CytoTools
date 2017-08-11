@@ -6,8 +6,8 @@
 
 #' @title Split Elements of a Character Vector By Multiple Elements
 #'
-#' @description Split the elements of `strs` into substrings between
-#'     instances of any element of `splits`.
+#' @description `multi_str_split` splits the elements of `strs` into substrings
+#'     between instances of any element of `splits`.
 #'
 #' @param strs character vector, each element of which is to be split.
 #' @param splits character vector of fixed strings or PCRE regular expressions

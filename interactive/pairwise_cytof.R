@@ -100,7 +100,7 @@ pheno_channel_names <- c(
 pheno_data <- CytoTools::normalize_pheno_channels_dataset(
     pheno_channel_names, cytof_data,
     ref = CytoTools::read_cyto_file("./iPSCs.fcs"),
-    transform_fun = asinh_transform)
+    transform_fun = asinh_transform(5))
 
 markers <- pheno_data$shared_channels
 message(sprintf("joining on %s markers: [%s]",

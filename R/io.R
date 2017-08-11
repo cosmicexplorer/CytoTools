@@ -10,8 +10,8 @@
 
 #' @title List Files in a Directory
 #'
-#' @description List all files in a directory without including other
-#'     directories and using the full filenames.
+#' @description `list_dir_files` lists all files in a directory without
+#'     including other directories and using the full filenames.
 #'
 #' @param path string, the directory to read.
 #'
@@ -97,7 +97,6 @@ read_text_cyto_frame <- function (fname, allow_skip, ...) {
 #' @export
 #'
 read_cyto_file <- function (fname, allow_skip = TRUE) {
-    ## TODO: does any kind of data cleaning make sense here? see ../README.md
     ## TODO: consider having a cache for this function if files are reused a lot
     ext <- tools::file_ext(fname) %>% tolower
     switch(
@@ -111,8 +110,8 @@ read_cyto_file <- function (fname, allow_skip = TRUE) {
 
 #' @title Scan a Directory for CytoF Files, Sort Them, and Read Them Into Memory
 #'
-#' @description Read all files with the given extensions in the current
-#'     directory into a named list of data frames.
+#' @description `read_files_sorted` reads all files with the given extensions in
+#'     the current directory into a named list of data frames.
 #'
 #' @inheritParams list_dir_files
 #' @param extensions character vector containing file extensions to process.
@@ -135,7 +134,7 @@ read_cyto_file <- function (fname, allow_skip = TRUE) {
 #'     to interpret each file's contents into a data frame.
 #'
 #' @examples
-#' sorted_cytof_data <- CytoTools::read_files_sorted(
+#' sorted_cytof_data <- read_files_sorted(
 #'    path = ".",
 #'    extensions = c("fcs"),
 #'    split_by = c("_", " "),

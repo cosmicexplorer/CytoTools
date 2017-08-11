@@ -4,24 +4,49 @@
 \alias{asinh_transform}
 \title{Hyperbolic Arcsin Transform for Cytometry Data}
 \usage{
-asinh_transform(x)
+asinh_transform(cofactor)
 }
 \arguments{
-\item{x}{vector to transform}
+\item{cofactor}{numeric, divide the input by this number before applying
+\code{\link[=asinh]{asinh()}}.}
 }
 \value{
-The transformed vector.
+A vectorized \emph{function} accepting one argument \code{x}, which applies
+\code{asinh(x / cofactor)}.
 }
 \description{
-\code{asinh_transform} applies the standard transform applied to
-channels of CyToF or flow cytometry data when comparing channels
-directly.
+\code{asinh_transform} generates a \emph{function} which applies the
+hyperbolic transformation with the specified \code{cofactor}.
 }
-\details{
-Performs the \code{asinh(x / 5)} transformation to the input data.
+\examples{
+## create a transformation function
+arcsin_trans_five <- asinh_transform(5)
+## this returns a function!
+## function (x) { asinh(x / cofactor) }
+## <environment: 0xf6e0da8>
+
+## create some example inputs
+v <- c(4, 3.2)
+## [1] 4.0 3.2
+m <- matrix((1:4)^1.5, nrow = 2)
+##          [,1]     [,2]
+## [1,] 1.000000 5.196152
+## [2,] 2.828427 8.000000
+
+## use the transformation on your data
+arcsin_trans_five(v)
+## [1] 0.7326683 0.6028207
+arcsin_trans_five(m)
+##           [,1]      [,2]
+## [1,] 0.1986901 0.9088435
+## [2,] 0.5391786 1.2489833
+
 }
 \references{
 Garner, Duane L., et al. "Fluorometric assessments of
 mitochondrial function and viability in cryopreserved bovine
 spermatozoa." Biology of Reproduction 57.6 (1997): 1401-1406.
+}
+\seealso{
+The \code{\link[=asinh]{asinh()}} function is used to perform the arcsin transformation.
 }

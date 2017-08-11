@@ -22,8 +22,8 @@ Named list with \code{time} rounded to \code{digits} in seconds, \code{value} as
 result of evaluating \code{expr}.
 }
 \description{
-Execute an expression and measure the time taken, returning
-both.
+\code{timed_execute} executes an expression and measures the time
+taken, returning both.
 }
 \examples{
 b <- 3
