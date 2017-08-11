@@ -4,40 +4,6 @@
 
 ### Clean fcs data.
 
-extract_pheno_channels <- function (channel_names, pop, pop_desc) {
-    ## we're matching channel names by fixed strings, and throw if there are
-    ## multiple matches for a channel name. if one channel name is a substring
-    ## of another (e.g. CD45RA and CD45), and we search for CD45 first, we'll
-    ## find results for both. narrow columns to matches for longer strings first
-    longer_first <- channel_names %>% sort %>% rev %T>% {
-        stopifnot(anyDuplicated(.) == 0)
-    }
-    ## FIXME: longer_first should be "super_first", since superstrings that have
-    ## different prefixes may still cause errors if the superstring's first
-    ## letter is earlier in the alphabet!
-    with_canonical_channels <- Reduce(
-        x = longer_first,
-        init = rep(colnames(pop)),
-        f = function (cols, channel) {
-            matched <- grep(channel, cols, fixed = TRUE)
-            if (length(matched) == 0) {
-                stop(sprintf(
-                    "no match was found for channel '%s' in population '%s'",
-                    channel, pop_desc))
-            } else if (length(matched) > 1) {
-                stop(sprintf(paste(
-                    "more than one match was found for channel '%s'",
-                    "in population '%s': [%s]"),
-                    channel, pop_desc,
-                    paste("\"", cols[matched], "\"",
-                          sep = "", collapse = ", ")))
-            }
-            cols[matched] <- channel
-            cols
-        })
-    with_canonical_channels[,channel_names]
-}
-
 ## TODO: get alternatives and comparisons to this
 #' @title Hyperbolic Arcsin Transform for Cytometry Data
 #'
@@ -84,6 +50,40 @@ extract_pheno_channels <- function (channel_names, pop, pop_desc) {
 asinh_transform <- function (cofactor) { function (x) {
     asinh(x / cofactor)
 }}
+
+extract_pheno_channels <- function (channel_names, pop, pop_desc) {
+    ## we're matching channel names by fixed strings, and throw if there are
+    ## multiple matches for a channel name. if one channel name is a substring
+    ## of another (e.g. CD45RA and CD45), and we search for CD45 first, we'll
+    ## find results for both. narrow columns to matches for longer strings first
+    longer_first <- channel_names %>% sort %>% rev %T>% {
+        stopifnot(anyDuplicated(.) == 0)
+    }
+    ## FIXME: longer_first should be "super_first", since superstrings that have
+    ## different prefixes may still cause errors if the superstring's first
+    ## letter is earlier in the alphabet!
+    with_canonical_channels <- Reduce(
+        x = longer_first,
+        init = rep(colnames(pop)),
+        f = function (cols, channel) {
+            matched <- grep(channel, cols, fixed = TRUE)
+            if (length(matched) == 0) {
+                stop(sprintf(
+                    "no match was found for channel '%s' in population '%s'",
+                    channel, pop_desc))
+            } else if (length(matched) > 1) {
+                stop(sprintf(paste(
+                    "more than one match was found for channel '%s'",
+                    "in population '%s': [%s]"),
+                    channel, pop_desc,
+                    paste("\"", cols[matched], "\"",
+                          sep = "", collapse = ", ")))
+            }
+            cols[matched] <- channel
+            cols
+        })
+    with_canonical_channels[,channel_names]
+}
 
 #' @title Extract and Transform Phenotype Channels from a CyToF Dataset
 #'
@@ -374,6 +374,10 @@ normal_iqr <- function (x, ...) {
 #'     `pop_list` are assumed to already be transformed (typically an arcsinh
 #'     transform, as in [asinh_transform()]).
 #'
+#'     To obtain a distance matrix of the Root Mean Square Distance (RMSD)
+#'     betwen each population's MEM scores, the [dist()] function can be used,
+#'     and converted to a matrix with [as.matrix()].
+#'
 #' @seealso [normalize_pheno_channels_dataset()] can be used to generate
 #'     a suitable `pop_list` and `ref` from a CyToF dataset, applying
 #'     transformations and normalizing phenotype channel names.
@@ -384,19 +388,30 @@ normal_iqr <- function (x, ...) {
 #' @examples
 #' ## make some example data (values are not representative of real data)
 #' ## inputs to `calc_mem` should be transformed already (e.g. the below
-#' ## represents an arcsinh-transformed dataset)
+#' ## could represent an arcsinh-transformed dataset)
 #' a <- data.frame(CCR5 = rnorm(100, 0, 5), CD3 = rnorm(100, 0, 5))
 #' b <- data.frame(CCR5 = rnorm(150, 0, 5), CD3 = rnorm(150, 0, 5))
+#' c <- data.frame(CCR5 = rnorm(150, 0, 5), CD3 = rnorm(150, 0, 5))
 #' ## example reference
 #' ref <- data.frame(CCR5 = rnorm(300, 0, 5), CD3 = rnorm(300, 0, 5))
+#'
 #' ## calculate MEM with minimum IQR of 0.5, scaled so maximum absolute
 #' ## magnitude is equal to 10 (as suggested in MEM paper)
-#' calc_mem(list("pop A" = a, "pop B" = b),
+#' mems <- calc_mem(list("pop A" = a, "pop B" = b),
 #'          ref,
 #'          IQRthresh = 0.5, scale_limit = 10)
-#' ##            CCR5         CD3
-#' ## pop A -5.194819  6.13224465
-#' ## pop B 10.000000 -0.09676974
+#' mems
+#' ##            CCR5       CD3
+#' ## pop A -2.446713 -1.085913
+#' ## pop B -1.304841 -1.620452
+#' ## pop C  3.201968 10.000000
+#'
+#' ## make a distance matrix of the RMSD between populations
+#' as.matrix(dist(mems))
+#' ##           pop A     pop B    pop C
+#' ## pop A  0.000000  1.260795 12.44207
+#' ## pop B  1.260795  0.000000 12.46380
+#' ## pop C 12.442068 12.463797  0.00000
 #'
 #' @export
 #'
@@ -474,11 +489,22 @@ calc_mem <- function (pop_list, ref,
 #' ## row/colnames are required for this function
 #' dimnames(mat) <- list(c("uno", "dos", "tres", "cuatro", "cinco"),
 #'                       c("uno", "dos", "tres", "cuatro", "cinco"))
+#' mat
+#' ##              uno       dos       tres     cuatro      cinco
+#' ## uno    0.0000000 0.3647115 1.14159784 1.05391169 1.17646111
+#' ## dos    0.3647115 0.0000000 0.77688632 0.68920017 0.81174959
+#' ## tres   1.1415978 0.7768863 0.00000000 0.08768615 0.03486327
+#' ## cuatro 1.0539117 0.6892002 0.08768615 0.00000000 0.12254942
+#' ## cinco  1.1764611 0.8117496 0.03486327 0.12254942 0.00000000
+#'
 #' ## no dendrograms, no scaling (default)
 #' plot_pairwise_comparison(mat)
+#' ## (R graphics device)
+#'
 #' ## rotated
 #' plot_pairwise_comparison(rotate_matrix_ccw(mat))
 #' ## (R graphics device)
+#'
 #' ## add similarity scaling and dendrograms
 #' plot_pairwise_comparison(
 #'     mat,

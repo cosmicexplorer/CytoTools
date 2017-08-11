@@ -37,11 +37,22 @@ mat <- as.matrix(dist(rnorm(5)))
 ## row/colnames are required for this function
 dimnames(mat) <- list(c("uno", "dos", "tres", "cuatro", "cinco"),
                       c("uno", "dos", "tres", "cuatro", "cinco"))
+mat
+##              uno       dos       tres     cuatro      cinco
+## uno    0.0000000 0.3647115 1.14159784 1.05391169 1.17646111
+## dos    0.3647115 0.0000000 0.77688632 0.68920017 0.81174959
+## tres   1.1415978 0.7768863 0.00000000 0.08768615 0.03486327
+## cuatro 1.0539117 0.6892002 0.08768615 0.00000000 0.12254942
+## cinco  1.1764611 0.8117496 0.03486327 0.12254942 0.00000000
+
 ## no dendrograms, no scaling (default)
 plot_pairwise_comparison(mat)
+## (R graphics device)
+
 ## rotated
 plot_pairwise_comparison(rotate_matrix_ccw(mat))
 ## (R graphics device)
+
 ## add similarity scaling and dendrograms
 plot_pairwise_comparison(
     mat,

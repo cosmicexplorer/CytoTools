@@ -35,24 +35,38 @@ of each population given against the provided reference population.
 \details{
 Note that the values of entries in \code{ref} and the populations of
 \code{pop_list} are assumed to already be transformed (typically an arcsinh
-transform, as in \code{\link[=asinh_transform]{asinh_transform()}}).
+transform, as in \code{\link[=asinh_transform]{asinh_transform()}}).\preformatted{To obtain a distance matrix of the Root Mean Square Distance (RMSD)
+betwen each population's MEM scores, the [dist()] function can be used,
+and converted to a matrix with [as.matrix()].
+}
 }
 \examples{
 ## make some example data (values are not representative of real data)
 ## inputs to `calc_mem` should be transformed already (e.g. the below
-## represents an arcsinh-transformed dataset)
+## could represent an arcsinh-transformed dataset)
 a <- data.frame(CCR5 = rnorm(100, 0, 5), CD3 = rnorm(100, 0, 5))
 b <- data.frame(CCR5 = rnorm(150, 0, 5), CD3 = rnorm(150, 0, 5))
+c <- data.frame(CCR5 = rnorm(150, 0, 5), CD3 = rnorm(150, 0, 5))
 ## example reference
 ref <- data.frame(CCR5 = rnorm(300, 0, 5), CD3 = rnorm(300, 0, 5))
+
 ## calculate MEM with minimum IQR of 0.5, scaled so maximum absolute
 ## magnitude is equal to 10 (as suggested in MEM paper)
-calc_mem(list("pop A" = a, "pop B" = b),
+mems <- calc_mem(list("pop A" = a, "pop B" = b),
          ref,
          IQRthresh = 0.5, scale_limit = 10)
-##            CCR5         CD3
-## pop A -5.194819  6.13224465
-## pop B 10.000000 -0.09676974
+mems
+##            CCR5       CD3
+## pop A -2.446713 -1.085913
+## pop B -1.304841 -1.620452
+## pop C  3.201968 10.000000
+
+## make a distance matrix of the RMSD between populations
+as.matrix(dist(mems))
+##           pop A     pop B    pop C
+## pop A  0.000000  1.260795 12.44207
+## pop B  1.260795  0.000000 12.46380
+## pop C 12.442068 12.463797  0.00000
 
 }
 \references{
